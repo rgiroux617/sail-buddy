@@ -1,0 +1,15 @@
+# Design source files — not needed for the web app
+*.psd
+
+# Cowork session test artifacts
+_shell_test.txt
+_write_test.txt
+
+# Orphaned / unused files
+implication_zoom_2.svg
+Archive/
+
+# Optional — keep results.xlsx out of the repo since results.js is the
+# actual source of truth at runtime. Remove this line if you want the
+# spreadsheet version-controlled too.
+results.xlsx

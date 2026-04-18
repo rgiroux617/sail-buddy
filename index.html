@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Minesweeper: Hormuz Edition</title>
+  <link href="https://fonts.googleapis.com/css2?family=Righteous&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #1a2a35; }
+    canvas { display: block; }
+
+    /* ══════════════════════════════════════════════
+       START SCREEN
+    ══════════════════════════════════════════════ */
+    #start-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(160deg, #e8c87a 0%, #d4935a 35%, #3c8c8c 70%, #1a5c6e 100%);
+      font-family: 'Nunito', sans-serif;
+    }
+
+    #start-screen.fade-out {
+      transition: opacity 0.8s ease;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .start-card {
+      background: rgba(255, 248, 225, 0.96);
+      border-radius: 24px;
+      padding: 32px 36px;
+      max-width: 480px;
+      width: 92%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      max-height: 92vh;
+      overflow-y: auto;
+    }
+
+    /* Title */
+    .start-title {
+      font-family: 'Righteous', sans-serif;
+      font-size: 36px;
+      line-height: 1.15;
+      color: #b84a1a;
+      text-align: center;
+      text-shadow: 1px 2px 0 rgba(0,0,0,0.12);
+    }
+    .start-subtitle {
+      display: block;
+      font-size: 14px;
+      color: #3c8c8c;
+      font-family: 'Nunito', sans-serif;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      text-shadow: none;
+      margin-bottom: 2px;
+    }
+
+    /* Description */
+    .start-desc {
+      font-size: 16px;
+      color: #4a3520;
+      line-height: 1.6;
+      text-align: left;
+      padding: 0 4px;
+    }
+
+    /* Divider */
+    .start-divider {
+      border: none;
+      border-top: 2px dashed rgba(184, 74, 26, 0.25);
+    }
+
+
+
+
+
+    /* Controls reference */
+    .controls-title {
+      font-family: 'Righteous', sans-serif;
+      font-size: 20px;
+      color: #3c8c8c;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      text-align: center;
+    }
+
+    .controls-subtitle {
+      grid-column: 1 / -1;
+      text-align: center;
+      font-family: 'Righteous', sans-serif;
+      font-size: 13px;
+      color: #3c8c8c;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-top: 4px;
+      margin-left: -46px;
+    }
+
+    .controls-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 16px;
+      padding-left: 46px;
+    }
+
+    .ctrl-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      color: #4a3520;
+    }
+
+    .ctrl-key {
+      background: #b84a1a;
+      color: white;
+      border-radius: 6px;
+      padding: 2px 8px;
+      font-family: 'Righteous', sans-serif;
+      font-size: 13px;
+      white-space: nowrap;
+      flex-shrink: 0;
+      min-width: 36px;
+      text-align: center;
+    }
+
+    .ctrl-key.wide { min-width: 56px; }
+
+    /* Ad slot */
+    .ad-wrapper {
+      display: flex;
+      justify-content: center;
+    }
+
+    .ad-slot {
+      border-radius: 12px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+    }
+    .ad-slot:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.22);
+    }
+    .ad-slot img { display: block; }
+    .ad-slot-banner img { width: 320px; height: auto; }
+
+    /* Go button */
+    #go-btn {
+      font-family: 'Righteous', sans-serif;
+      font-size: 22px;
+      letter-spacing: 0.05em;
+      background: linear-gradient(135deg, #b84a1a, #e07030);
+      color: white;
+      border: none;
+      border-radius: 14px;
+      padding: 14px 0;
+      width: 100%;
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(184,74,26,0.4);
+      transition: transform 0.12s ease, box-shadow 0.12s ease;
+    }
+    #go-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(184,74,26,0.5);
+    }
+    #go-btn:active { transform: translateY(0); }
+
+    /* ── How-to card ── */
+    #how-to-btn {
+      align-self: center;
+      background: linear-gradient(135deg, #3c8c8c, #30e0e0);
+      color: white;
+      border: none;
+      border-radius: 14px;
+      padding: 10px 28px;
+      font-size: 18px;
+      cursor: pointer;
+      width: 100%;
+      line-height: 1;
+    }
+
+    /* The how-to card sits in the same fixed overlay as the main card.
+       It starts hidden (display:none), slides in from the right when shown. */
+    .how-to-hidden {
+      display: none !important;
+    }
+
+    .how-to-visible {
+      display: flex !important;
+      position: fixed;
+      inset: 0;
+      z-index: 110;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(160deg, #e8c87a 0%, #d4935a 35%, #3c8c8c 70%, #1a5c6e 100%);
+      animation: slideInRight 0.3s ease;
+    }
+
+    @keyframes slideInRight {
+      from { transform: translateX(100%); }
+      to   { transform: translateX(0); }
+    }
+
+
+    @keyframes slideOutLeft {
+      from { transform: translateX(0); }
+      to   { transform: translateX(-100%); }
+    }
+
+.how-to-leaving {
+  animation: slideOutLeft 0.3s ease forwards;
+}
+    /* ══════════════════════════════════════════════
+       SHIP PICKER
+    ══════════════════════════════════════════════ */
+    .ship-picker-title {
+      font-family: 'Righteous', sans-serif;
+      font-size: 20px;
+      color: #3c8c8c;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      text-align: center;
+    }
+
+    .ship-options {
+      display: flex;
+      gap: 14px;
+      justify-content: center;
+    }
+
+    .ship-card {
+      flex: 1;
+      max-width: 170px;
+      border: 3px solid rgba(0,0,0,0.12);
+      border-radius: 12px;
+      padding: 12px 10px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      background: rgba(255,255,255,0.55);
+      user-select: none;
+    }
+
+    @keyframes shipRock {
+      0%   { transform: rotate(-90deg); }
+      25%  { transform: rotate(-91deg); }
+      75%  { transform: rotate(-89deg); }
+      100% { transform: rotate(-90deg); }
+    }
+
+    .ship-card img {
+      width: 80px;
+      height: 80px;
+      object-fit: contain;
+      object-position: center bottom;
+      display: block;
+      animation: shipRock 3.2s ease-in-out infinite;
+    }
+
+    .ship-img-stripe {
+      width: 100%;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #3c8c8c, #30e0e0);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 6px 0;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Wake line layer sits behind the ship image */
+    .ship-wake-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    .ship-label {
+      font-size: 12px;
+      color: #4a3520;
+      text-align: center;
+      font-family: 'Nunito', sans-serif;
+      font-weight: 500;
+      font-style: italic;
+    }
+
+    .ship-label-title {
+      font-size: 13px;
+      color: #4a3520;
+      text-align: center;
+      font-family: 'Nunito', sans-serif;
+      font-weight: 900;
+      /* font-style: bold; */
+    }
+
+    .ship-card.selected {
+      border-color: #b84a1a;
+      box-shadow: 0 0 0 2px rgba(184,74,26,0.25), 0 4px 16px rgba(184,74,26,0.15);
+    }
+
+    .ship-card:hover:not(.selected) {
+      border-color: rgba(184,74,26,0.4);
+    }
+
+    /* ══════════════════════════════════════════════
+       GAME HUD
+    ══════════════════════════════════════════════ */
+    #hud {
+      position: fixed;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      z-index: 10;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    }
+    #hud.visible { opacity: 1; }
+
+    #anchor-tally {
+      color: #fff;
+      font: bold 28px/1 'Righteous', sans-serif;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.7);
+      letter-spacing: 2px;
+    }
+    #timer {
+      color: rgba(255,255,255,0.9);
+      font: bold 20px/1 monospace;
+      text-shadow: 0 1px 6px rgba(0,0,0,0.6);
+      transition: color 0.3s;
+      display: inline-block;   /* needed so transform/scale works on inline text */
+    }
+    #timer.urgent { color: #e84c38; }
+
+    @keyframes timerBonus {
+      0%   { transform: scale(1);    color: rgba(255,255,255,0.9); text-shadow: 0 1px 6px rgba(0,0,0,0.6); }
+      15%  { transform: scale(1.32); color: #4cff90;               text-shadow: 0 0 14px rgba(76,255,144,0.9); }
+      45%  { transform: scale(1.18); color: #4cff90;               text-shadow: 0 0 10px rgba(76,255,144,0.7); }
+      100% { transform: scale(1);    color: rgba(255,255,255,0.9); text-shadow: 0 1px 6px rgba(0,0,0,0.6); }
+    }
+    #timer.timer-bonus {
+      animation: timerBonus 1.4s ease-out forwards;
+    }
+    #hp-label {
+      color: rgba(255,255,255,0.6);
+      font: 11px/1 sans-serif;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    #hp-track {
+      width: 180px; height: 10px;
+      background: rgba(0,0,0,0.45);
+      border-radius: 5px;
+      border: 1px solid rgba(255,255,255,0.2);
+      overflow: hidden;
+    }
+    #hp-fill {
+      height: 100%; width: 100%;
+      background: #4caf82; border-radius: 5px;
+      transition: width 0.25s ease, background 0.4s ease;
+    }
+    #hp-text { color: rgba(255,255,255,0.6); font: 11px/1 monospace; }
+
+    /* Depth charge icons */
+    #dc-charges {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      margin-top: 2px;
+    }
+    .dc-icon {
+      width: 28px;
+      height: 28px;
+      object-fit: contain;
+      filter: drop-shadow(0 1px 4px rgba(255,140,20,0.7));
+      transition: opacity 0.2s ease, filter 0.2s ease;
+    }
+    .dc-icon.dc-used {
+      opacity: 0.22;
+      filter: grayscale(1) drop-shadow(none);
+    }
+
+    /* ══════════════════════════════════════════════
+       ON-SCREEN CONTROLS
+    ══════════════════════════════════════════════ */
+    #controls {
+      position: fixed;
+      bottom: 28px; left: 50%;
+      transform: translateX(-50%);
+      display: flex; gap: 14px;
+      z-index: 10; user-select: none;
+      opacity: 0; transition: opacity 0.5s ease;
+    }
+    #controls.visible { opacity: 1; }
+
+    #controls button {
+      width: 68px; height: 68px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.35);
+      background: rgba(0,0,0,0.50);
+      color: #fff; font-size: 26px;
+      cursor: pointer; touch-action: none;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+      transition: background 0.1s;
+    }
+    #controls button:active,
+    #controls button.held { background: rgba(255,255,255,0.18); }
+
+    #btn-shield {
+      position: relative; bottom: 44px; margin-right: -8px;
+      width: 52px; height: 52px; font-size: 20px; opacity: 0.85;
+    }
+    #btn-zoom {
+      position: relative; bottom: 44px; margin-left: -8px;
+      width: 52px; height: 52px; font-size: 20px; opacity: 0.85;
+    }
+
+    /* Shared button utility (used by how-to-close and return-to-port). */
+    .overlay-btn {
+      margin-top: 12px; padding: 14px 36px;
+      font-size: 18px; font-family: 'Righteous', sans-serif;
+      border-radius: 8px; border: none;
+      background: #4caf82; color: white; cursor: pointer;
+    }
+
+    /* ══════════════════════════════════════════════
+       END SCREEN (report card)
+       Mirrors the start-screen look: gradient background + cream card.
+    ══════════════════════════════════════════════ */
+    #end-screen {
+      display: none;                          /* toggled to 'flex' by main.js */
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(160deg, #e8c87a 0%, #d4935a 35%, #3c8c8c 70%, #1a5c6e 100%);
+      font-family: 'Nunito', sans-serif;
+      animation: slideInRight 0.4s ease;
+    }
+    #end-screen.fade-out {
+      transition: opacity 0.6s ease;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    /* Hero stats row — big tanker/oil numbers at top of card */
+    .end-hero {
+      display: flex;
+      justify-content: space-around;
+      gap: 12px;
+      padding: 6px 0 4px;
+    }
+    .end-hero-stat {
+      text-align: center;
+      flex: 1;
+    }
+    .end-hero-icon {
+      font-size: 34px;
+      line-height: 1;
+    }
+    .end-hero-num {
+      font-family: 'Righteous', sans-serif;
+      font-size: 32px;
+      color: #b84a1a;
+      line-height: 1.1;
+      margin-top: 2px;
+    }
+    .end-hero-label {
+      font-size: 11px;
+      color: #3c8c8c;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+
+    /* Small secondary stat (hull) */
+    .end-secondary {
+      text-align: center;
+      font-size: 12px;
+      color: #4a3520;
+      font-family: monospace;
+      margin-top: -6px;
+      }
+
+    /* 2x2 grid of flavor verdicts */
+    .end-verdicts {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px 14px;
+    }
+    .end-verdict {
+      background: rgba(60, 140, 140, 0.08);
+      border-left: 3px solid #3c8c8c;
+      border-radius: 6px;
+      padding: 8px 10px;
+    }
+    .end-verdict-label {
+      font-size: 14px;
+      color: #3c8c8c;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
+    .end-verdict-text {
+      font-size: 16px;
+      color: #4a3520;
+      line-height: 1.35;
+    }
+
+    /* Bible-verse quip area */
+    .end-quip {
+      font-style: italic;
+      text-align: center;
+      color: #4a3520;
+      font-size: 13px;
+      line-height: 1.4;
+      padding: 4px 6px;
+      border-top: 1px dashed rgba(184, 74, 26, 0.25);
+      border-bottom: 1px dashed rgba(184, 74, 26, 0.25);
+      padding-top: 10px;
+      padding-bottom: 10px;
+    }
+
+    /* ══════════════════════════════════════════════
+       AD MODAL (required by ad-engine.js)
+    ══════════════════════════════════════════════ */
+    #adModal {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.55);
+      z-index: 200;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #adModal.hidden { display: none; }
+
+    .ad-card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 24px;
+      max-width: 420px; width: 90%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+      font-family: 'Nunito', sans-serif;
+      position: relative;
+    }
+    #adKicker {
+      font-size: 12px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.08em;
+      color: #888; margin-bottom: 4px;
+    }
+    #adTitle {
+      font-family: 'Righteous', sans-serif;
+      font-size: 22px; color: #222;
+      margin-bottom: 12px;
+    }
+    #adBody { font-size: 15px; color: #444; line-height: 1.6; margin-bottom: 16px; }
+    #adFooter { display: flex; gap: 10px; flex-wrap: wrap; }
+    #adFooter .btn {
+      padding: 10px 20px; border-radius: 8px; border: none;
+      background: #b84a1a; color: white; cursor: pointer;
+      font-family: 'Righteous', sans-serif; font-size: 15px;
+    }
+    #adFooter .btn:hover { background: #e07030; }
+    #closeAdBtn {
+      position: absolute; top: 12px; right: 14px;
+      background: none; border: none; font-size: 20px;
+      cursor: pointer; color: #aaa;
+    }
+
+    /* Ad theme overrides */
+    .ad-theme-oracle  { border-top: 4px solid #7b5ea7; }
+    .ad-theme-bugman  { border-top: 4px solid #b84a1a; }
+    .ad-theme-patriot { border-top: 4px solid #1a5c8c; }
+    .ad-theme-summer  { border-top: 4px solid #e8c44a; }
+    .ad-theme-spooky  { border-top: 4px solid #2a2a2a; }
+
+    /* animating state for FLIP */
+    .ad-card.animating { will-change: transform; }
+
+    /* ══════════════════════════════════════════════
+       DEBUG
+    ══════════════════════════════════════════════ */
+    #debug {
+      position: fixed; top: 12px; left: 12px;
+      color: rgba(255,255,255,0.75);
+      font: 13px/1.6 monospace;
+      pointer-events: none; display: none;
+    }
+
+
+  </style>
+</head>
+<body>
+
+  <canvas id="sailCanvas"></canvas>
+
+  <!-- ── Start Screen ─────────────────────────────────────────────── -->
+  <div id="start-screen">
+    <div class="start-card">
+
+    <div class="start-title">
+      <span class="start-subtitle">💣 Bugman Industries Presents</span>
+      Minesweeper:<br><span style="color: #d3b90f;">Hormuz</span> Edition
+    </div>
+
+      <p class="start-desc">
+        In 90 seconds, oil tankers will reach The Strait —
+        and everyone forgot to clear the mines!
+        <b>DJT</b> is on the line and I've got to give him the update -
+        will YOU save the day, chump?
+      </p>
+      <button id="how-to-btn" title="How to play">But I'm no Merchant Mariner!</button>
+
+      <hr class="start-divider">
+
+      <!-- Ship picker -->
+      <div class="ship-picker-title">Pick your Ship</div>
+      <div class="ship-options">
+        <div class="ship-card selected" id="ship-motorboat">
+          <span class="ship-label-title">Kawasaki XK-8500</span>
+            <div class="ship-img-stripe">
+              <canvas class="ship-wake-canvas"></canvas>
+              <img src="./motorboat.png" alt="Motorboat">
+            </div>
+          <span class="ship-label">"The right choice"</span>
+        </div>
+        <div class="ship-card" id="ship-motorboat2">
+          <span class="ship-label-title">Evinrude Dualthrust</span>
+            <div class="ship-img-stripe">
+              <canvas class="ship-wake-canvas"></canvas>
+              <img src="./motorboat_2.png" alt="Jet Boat">
+            </div>
+          <span class="ship-label">"Too much boat for you"</span>
+        </div>
+      </div>
+
+      <hr class="start-divider">
+
+      <!-- <div class="controls-title">How to Play</div> -->
+
+      <div class="controls-grid">
+        <div class="controls-subtitle">Controls</div>
+        <div class="ctrl-row"><span class="ctrl-key">◀ ▶</span> Steer</div>
+        <div class="ctrl-row"><span class="ctrl-key">◀+▶</span> Depth Charge</div>
+        <div class="ctrl-row"><span class="ctrl-key">⚡</span> Boost</div>
+        <div class="ctrl-row"><span class="ctrl-key">🛡</span> Shield</div>
+        <div class="ctrl-row"><span class="ctrl-key">⌖</span> Zoom Out</div>
+        <div class="ctrl-row"><span class="ctrl-key">🛡+⌖</span> Radar</div>
+        <div class="controls-subtitle">Hull Damage — use your shields!</div>
+        <div class="ctrl-row"><span class="ctrl-key">💣</span> −10 HP</div>
+        <div class="ctrl-row"><span class="ctrl-key">⛰</span> −10 HP coastline</div>
+      </div>
+
+      <hr class="start-divider">
+
+      <!-- Ad slot — random ad picked by ad-engine.js -->
+      <div class="ad-wrapper">
+        <div class="ad-slot" id="startScreenAd"></div>
+      </div>
+
+      <hr class="start-divider">
+
+      <button id="go-btn">⚓ SAVE THE DAY ⚓</button>
+
+    </div>
+
+    <div id="how-to-card" class="how-to-hidden">
+      <div class="start-card">
+        <div class="start-title" style="font-size:24px;">How to Play</div>
+        <p class="start-desc" style="text-align:left;">
+          Clear as many of the 30 mines as you can in 90s (75s for the Dualthrust).<br><br>
+          Colliding with land or running over mines will damage the hull unless your shield is activated<br><br>
+          The shield is also the brake (and let's you make tighter turns)<br><br>
+          Zoom out or use radar to identify mine locations<br><br>
+          You get 3 depth charges for mass (and safe) mine collection <br><br>
+          There's no way to fully stop the boat - ain't nobody got time for that!<br><br>
+          The depth of your failure will be assessed once you wreck or run out of time.
+        </p>
+        <button id="how-to-close" class="overlay-btn" style="background:#3c8c8c;">← Back</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Game HUD ──────────────────────────────────────────────────── -->
+  <div id="hud">
+    <div id="anchor-tally">💣 0 / 30</div>
+    <div id="timer">2:00.00</div>
+    <div id="hp-label">Hull integrity</div>
+    <div id="hp-track"><div id="hp-fill"></div></div>
+    <div id="hp-text">100 / 100</div>
+    <div id="dc-charges">
+      <img id="dc-icon-0" class="dc-icon" src="./depth-charge.png" alt="Depth charge" title="Depth charge">
+      <img id="dc-icon-1" class="dc-icon" src="./depth-charge.png" alt="Depth charge" title="Depth charge">
+      <img id="dc-icon-2" class="dc-icon" src="./depth-charge.png" alt="Depth charge" title="Depth charge">
+    </div>
+  </div>
+
+  <!-- ── On-screen controls ────────────────────────────────────────── -->
+  <div id="controls">
+    <button id="btn-shield" title="Shield">🛡</button>
+    <button id="btn-left"   title="Turn left">◀</button>
+    <button id="btn-boost"  title="Boost">⚡</button>
+    <button id="btn-right"  title="Turn right">▶</button>
+    <button id="btn-zoom"   title="Zoom out">⌖</button>
+  </div>
+
+  <div id="debug"></div>
+
+  <!-- ── End Screen (debrief / report card) ───────────────────────── -->
+  <div id="end-screen">
+    <div class="start-card">
+
+      <div class="start-title">
+        <span class="start-subtitle">💣 Bugman Industries Top Secret</span>
+        DEBRIEF
+      </div>
+
+      <!-- Hero stats: tankers destroyed + oil spilled -->
+      <div class="end-hero">
+        <div class="end-hero-stat">
+          <div class="end-hero-icon">🚢</div>
+          <div class="end-hero-num" id="end-tankers">0</div>
+          <div class="end-hero-label">Tankers Destroyed</div>
+        </div>
+        <div class="end-hero-stat">
+          <div class="end-hero-icon">🛢️</div>
+          <div class="end-hero-num" id="end-oil">0.0M</div>
+          <div class="end-hero-label">Barrels Spilled</div>
+        </div>
+      </div>
+
+      <div class="end-secondary" id="end-hull" style="display:none">Hull: 100 / 100</div>
+
+      <hr class="start-divider">
+
+      <!-- 2x2 grid of flavor verdicts -->
+      <div class="end-verdicts">
+        <div class="end-verdict">
+          <div class="end-verdict-label">📉 Economic</div>
+          <div class="end-verdict-text" id="end-economic"></div>
+        </div>
+        <div class="end-verdict">
+          <div class="end-verdict-label">🐟 Ecological</div>
+          <div class="end-verdict-text" id="end-ecological"></div>
+        </div>
+        <div class="end-verdict">
+          <div class="end-verdict-label">🏛️ Political</div>
+          <div class="end-verdict-text" id="end-political"></div>
+        </div>
+        <div class="end-verdict">
+          <div class="end-verdict-label">🔮 Future</div>
+          <div class="end-verdict-text" id="end-future"></div>
+        </div>
+      </div>
+
+      <!-- Quip (Bible verse for now) -->
+      <div class="end-quip" id="end-quip"></div>
+
+      <!-- Ad banner — populated by main.js on end-screen show -->
+      <div class="ad-wrapper">
+        <div class="ad-slot" id="endScreenAd"></div>
+      </div>
+
+      <hr class="start-divider">
+
+      <button id="return-port-btn" class="overlay-btn" style="font-family:'Righteous',sans-serif;font-size:22px;background:linear-gradient(135deg,#b84a1a,#e07030);border-radius:14px;padding:14px 0;width:100%;box-shadow:0 4px 16px rgba(184,74,26,0.4);">
+        ⚓ RETURN TO PORT ⚓
+      </button>
+
+      <span class="start-subtitle" style="text-align:right;">&copy;2026 Bugman Industries LLC</span>
+
+    </div>
+  </div>
+
+  <!-- ── Ad Modal (required by ad-engine.js) ───────────────────────── -->
+  <div id="adModal" class="hidden">
+    <div id="adCard" class="ad-card">
+      <button id="closeAdBtn" title="Close">✕</button>
+      <div id="adKicker"></div>
+      <div id="adTitle"></div>
+      <div id="adBody"></div>
+      <div id="adFooter"></div>
+    </div>
+  </div>
+
+  <script type="module" src="./main.js"></script>
+  <script type="module" src="./BugmanAds/ad-engine.js"></script>
+
+
+  <script>
+    // Animate wake lines on each ship stripe canvas
+    (function() {
+      // Each wake line: x position, y position, width, opacity, speed
+      function initWakes(canvas) {
+        const lines = [];
+        for (let i = 0; i < 5; i++) {
+          lines.push(makeWakeLine(canvas, true));
+        }
+        return lines;
+      }
+
+      function makeWakeLine(canvas, randomStart) {
+        const h = canvas.height;
+        return {
+          x:       randomStart ? Math.random() * canvas.width : canvas.width,
+          y:       h * (0.25 + Math.random() * 0.5),   // middle 50% of height
+          len:     18 + Math.random() * 28,             // line length
+          speed:   28 + Math.random() * 22,             // px per second
+          opacity: 0.25 + Math.random() * 0.45,
+          width:   0.8 + Math.random() * 1.2,
+        };
+      }
+
+      function animateCanvas(canvas) {
+        // Size canvas to its CSS size
+        const rect = canvas.getBoundingClientRect();
+        canvas.width  = rect.width  || canvas.offsetWidth;
+        canvas.height = rect.height || canvas.offsetHeight;
+        if (canvas.width === 0) { canvas.width = 150; canvas.height = 92; }
+
+        const ctx   = canvas.getContext('2d');
+        const lines = initWakes(canvas);
+        let last    = null;
+
+        function frame(ts) {
+          const dt = last === null ? 0 : Math.min((ts - last) / 1000, 0.1);
+          last = ts;
+
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+          lines.forEach((l, i) => {
+            // Move right-to-left
+            l.x -= l.speed * dt;
+            // Recycle when fully off the left edge
+            if (l.x + l.len < 0) {
+              lines[i] = makeWakeLine(canvas, false);
+              return;
+            }
+
+            ctx.save();
+            ctx.globalAlpha = l.opacity;
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth   = l.width;
+            ctx.lineCap     = 'round';
+            ctx.beginPath();
+            ctx.moveTo(l.x,         l.y);
+            ctx.lineTo(l.x + l.len, l.y);
+            ctx.stroke();
+            ctx.restore();
+          });
+
+          requestAnimationFrame(frame);
+        }
+        requestAnimationFrame(frame);
+      }
+
+      document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('.ship-wake-canvas').forEach(animateCanvas);
+      });
+    })();
+  </script>
+
+</body>
+</html>
+                                                                         

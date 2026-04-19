@@ -71,15 +71,28 @@ export function createSoundEngine() {
 
   // ── Init ──────────────────────────────────────────────────────────────────
   // Must be called from a user-gesture handler (e.g. button click).
-  // iOS Safari creates AudioContexts in a "suspended" state and requires an
-  // explicit .resume() call — also inside the gesture — before any sound plays.
+  // On iOS, AudioContext inside ES modules is not treated as a user gesture.
+  // The fix: index.html's inline script creates and unlocks the context on
+  // the very first touch (stored as window._sbAudioCtx). We reuse it here.
   function init() {
     if (ctx) {
       if (ctx.state === 'suspended') ctx.resume();
       return;
     }
+    // Reuse the context unlocked by the inline script in index.html (iOS fix)
+    if (window._sbAudioCtx) {
+      ctx = window._sbAudioCtx;
+      if (ctx.state === 'suspended') ctx.resume();
+      return;
+    }
+    // Fallback for desktop (modules work fine there)
     ctx = new (window.AudioContext || window.webkitAudioContext)();
-    ctx.resume();   // required on iOS Safari
+    const silentBuf = ctx.createBuffer(1, 1, ctx.sampleRate);
+    const silentSrc = ctx.createBufferSource();
+    silentSrc.buffer = silentBuf;
+    silentSrc.connect(ctx.destination);
+    silentSrc.start(0);
+    ctx.resume();
   }
 
   // ── Sample loader ─────────────────────────────────────────────────────────

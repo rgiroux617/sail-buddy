@@ -641,6 +641,30 @@
 
 
   </style>
+  <script>
+    // iOS WebKit does not recognize AudioContext creation inside ES modules
+    // as a valid user gesture. This plain (non-module) script listens for the
+    // very first touch or click and unlocks audio immediately, before main.js
+    // even gets involved. sound.js will reuse this context via window._sbAudioCtx.
+    (function() {
+      function unlockAudio() {
+        if (window._sbAudioCtx) return;
+        var AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        var ctx = new AudioCtx();
+        // Play a silent 1-sample buffer — required by iOS to fully unlock
+        var buf = ctx.createBuffer(1, 1, ctx.sampleRate);
+        var src = ctx.createBufferSource();
+        src.buffer = buf;
+        src.connect(ctx.destination);
+        src.start(0);
+        ctx.resume();
+        window._sbAudioCtx = ctx;
+      }
+      document.addEventListener('touchstart', unlockAudio, { once: true, passive: true });
+      document.addEventListener('click',      unlockAudio, { once: true });
+    })();
+  </script>
 </head>
 <body>
 

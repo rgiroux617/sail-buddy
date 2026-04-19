@@ -56,10 +56,30 @@ export function createSoundEngine() {
   let sampleCollision   = null;   // land_collision.wav
   let sampleDepthCharge = null;   // depth_charge.wav
 
+  // ── Mute state ────────────────────────────────────────────────────────────
+  let muted = false;  // starts unmuted; will be set true before first user gesture
+
+  function setMuted(val) {
+    muted = val;
+    // If the engine is running, adjust masterGain live
+    if (masterGain && ctx) {
+      masterGain.gain.setTargetAtTime(val ? 0 : 8.0, ctx.currentTime, 0.15);
+    }
+  }
+
+  function getMuted() { return muted; }
+
   // ── Init ──────────────────────────────────────────────────────────────────
+  // Must be called from a user-gesture handler (e.g. button click).
+  // iOS Safari creates AudioContexts in a "suspended" state and requires an
+  // explicit .resume() call — also inside the gesture — before any sound plays.
   function init() {
-    if (ctx) return;
+    if (ctx) {
+      if (ctx.state === 'suspended') ctx.resume();
+      return;
+    }
     ctx = new (window.AudioContext || window.webkitAudioContext)();
+    ctx.resume();   // required on iOS Safari
   }
 
   // ── Sample loader ─────────────────────────────────────────────────────────
@@ -147,7 +167,10 @@ export function createSoundEngine() {
 
     masterGain = ctx.createGain();
     masterGain.gain.setValueAtTime(0, ctx.currentTime);
-    masterGain.gain.linearRampToValueAtTime(8.0, ctx.currentTime + 0.4);
+    // Only ramp up if not muted
+    if (!muted) {
+      masterGain.gain.linearRampToValueAtTime(8.0, ctx.currentTime + 0.4);
+    }
     masterGain.connect(ctx.destination);
 
     // Scheduler loop — runs every 50ms, schedules pulses up to LOOKAHEAD ahead
@@ -243,11 +266,13 @@ export function createSoundEngine() {
 
   // ── Land collision — land_collision.wav ──────────────────────────────────
   function playCollision() {
+    if (!ctx || muted) return;
     _playSample(sampleCollision, VOL_COLLISION);
   }
 
   // ── Mine / depth charge explosion — depth_charge.wav ─────────────────────
   function playMineHit() {
+    if (!ctx || muted) return;
     _playSample(sampleDepthCharge, VOL_DEPTH_CHARGE);
   }
 
@@ -256,7 +281,7 @@ export function createSoundEngine() {
   // Short attack, medium decay — feels like a classic "item get" reward sound.
   // A soft low-pass keeps it warm rather than harsh.
   function playHourglassCollect() {
-    if (!ctx) return;
+    if (!ctx || muted) return;
 
     function _chime(hz, delaySeconds, volume) {
       const t   = ctx.currentTime + delaySeconds;
@@ -312,7 +337,7 @@ export function createSoundEngine() {
   let fuseDuration   = 2.5;    // mirrors DC_FUSE_DELAY in main.js
 
   function playDepthChargeFuse(duration = 2.5) {
-    if (!ctx) return;
+    if (!ctx || muted) return;
     stopDepthChargeFuse();   // safety: clear any leftover fuse
 
     fuseDuration  = duration;
@@ -393,7 +418,7 @@ export function createSoundEngine() {
 
   // ── Radar ping — classic sonar ────────────────────────────────────────────
   function playRadarPing() {
-    if (!ctx) return;
+    if (!ctx || muted) return;
     function _ping(delaySeconds, volumeScale) {
       const t   = ctx.currentTime + delaySeconds;
       const osc = ctx.createOscillator();
@@ -416,6 +441,8 @@ export function createSoundEngine() {
     startEngine,
     stopEngine,
     setBoost,
+    setMuted,
+    getMuted,
     playCollision,
     playMineHit,
     playHourglassCollect,

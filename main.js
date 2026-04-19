@@ -119,6 +119,7 @@ function vibrate(pattern) {
 
   // ── Sound engine ──────────────────────────────────────────────────────────
   const sound = createSoundEngine();
+  sound.setMuted(true);   // muted by default — user toggles with the 🔇 button
 
   const fog = createFog({ mapW: mapWidth, mapH: mapHeight });
   renderer.setFog(fog);
@@ -477,8 +478,8 @@ function vibrate(pattern) {
     timeRemaining = cfg.countdown;
     updateTimerHud(timeRemaining);
     renderer.setShipImage(selectedShip);
-    sound.init();          // must be called from user gesture
-    sound.loadSamples('.');  // fetch + decode WAV files now that AudioContext exists
+    sound.init();          // must be called from user gesture — also calls ctx.resume() for iOS
+    sound.loadSamples('.'); // fetch + decode WAV files now that AudioContext is running
     sound.startEngine({ normalRpm: cfg.soundRpm, boostRpm: cfg.soundBoostRpm, filterHz: cfg.soundFilterHz });
     const startEl = document.getElementById('start-screen');
     startEl.classList.add('fade-out');
@@ -493,6 +494,16 @@ function vibrate(pattern) {
   }
 
   document.getElementById('go-btn').addEventListener('click', startIntro);
+
+  // ── Mute toggle (start screen top-left) ──────────────────────────────────
+  // Also calls sound.init() so that ANY tap on this button unlocks the
+  // AudioContext on iOS — even if the user taps it before "SAVE THE DAY".
+  document.getElementById('mute-btn').addEventListener('click', () => {
+    sound.init();   // safe to call multiple times; iOS: unlocks AudioContext on first tap
+    const nowMuted = !sound.getMuted();
+    sound.setMuted(nowMuted);
+    document.getElementById('mute-btn').textContent = nowMuted ? '🔇' : '🔊';
+  });
 
   // ── Return-to-Port button (end-screen → start-screen, full state reset) ──
   document.getElementById('return-port-btn').addEventListener('click', resetGame);

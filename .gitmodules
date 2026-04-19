@@ -1,0 +1,3 @@
+[submodule "BugmanAds"]
+	path = BugmanAds
+	url = https://github.com/rgiroux617/bugman-ads.git

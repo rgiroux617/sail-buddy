@@ -85,6 +85,7 @@ export function createInput() {
     bindButton('btn-left',  'turnLeft');
     bindButton('btn-right', 'turnRight');
     bindButton('btn-boost', 'boost');
+    bindButton('btn-shield', 'shield');
   }
 
   if (document.readyState === 'loading') {

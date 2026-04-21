@@ -481,11 +481,13 @@ function vibrate(pattern) {
         const updatedBoard = await fetchLeaderboard();
         renderLeaderboard(updatedBoard, anchorsFound);
         document.getElementById('end-screen').style.display = 'flex';
+        setTimeout(() => { document.querySelector('#end-screen .start-card').scrollTop = 0; }, 50);
       };
     } else {
       // No high score — show results directly with leaderboard
       renderLeaderboard(currentBoard, null);
       document.getElementById('end-screen').style.display = 'flex';
+      setTimeout(() => { document.querySelector('#end-screen .start-card').scrollTop = 0; }, 50);
     }
   }
 

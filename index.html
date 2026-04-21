@@ -639,6 +639,51 @@
       pointer-events: none; display: none;
     }
 
+    /* Leaderboard */
+    .leaderboard-title {
+      font-family: 'Righteous', sans-serif;
+      font-size: 20px;
+      color: #b84a1a;
+      text-align: center;
+      letter-spacing: 0.05em;
+    }
+
+    .leaderboard-card {
+      background: rgba(180, 220, 230, 0.25);
+      border-radius: 16px;
+      padding: 16px 12px;
+    }
+
+    .leaderboard-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 15px;
+      font-family: 'Nunito', sans-serif;
+    }
+
+    .leaderboard-table th {
+      color: #3c8c8c;
+      font-family: 'Righteous', sans-serif;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 4px 8px;
+      border-bottom: 2px solid rgba(184,74,26,0.2);
+      text-align: center;
+    }
+
+    .leaderboard-table td {
+      padding: 5px 8px;
+      color: #4a3520;
+      border-bottom: 1px solid rgba(0,0,0,0.06);
+      text-align: center;
+    }
+
+    .leaderboard-table tr.lb-highlight td {
+      background: rgba(251, 251, 251, 0.42);
+      font-weight: 700;
+      color: #b84a1a;
+    }
 
   </style>
   <script>
@@ -665,6 +710,7 @@
       document.addEventListener('click',      unlockAudio, { once: true });
     })();
   </script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
@@ -682,7 +728,7 @@
     </div>
 
       <p class="start-desc">
-        In 90 seconds, oil tankers will reach The Strait —
+        In 60 seconds, oil tankers will reach The Strait —
         and everyone forgot to clear the mines!
         <b>DJT</b> is on the line and I've got to give him the update -
         will YOU save the day, chump?
@@ -784,6 +830,47 @@
 
   <div id="debug"></div>
 
+  <!-- ── Initials Entry Card ──────────────────────────────────────── -->
+  <div id="initials-screen"
+    style="display:none; position:fixed; inset:0; z-index:150; align-items:center; justify-content:center; background:linear-gradient(160deg,#e8c87a 0%,#d4935a 35%,#3c8c8c 70%,#1a5c6e 100%);">
+    <div class="start-card" style="text-align:center;gap:20px;">
+      <div class="start-title" style="font-size:28px;">🏆 High Score 🏆</div>
+      <div class="end-verdict-text" style="text-align:center; font-size:20px;" id="initials-msg">
+        You cleared <strong id="initials-score"></strong> mines —<br> good job, skipper! <br><br> Drop those initials.
+      </div>
+      <input id="initials-input" type="text" maxlength="3" placeholder="AAA" autocomplete="off" autocorrect="off"
+        spellcheck="false" style="
+          font-family:'Righteous',sans-serif;
+          font-size:36px;
+          text-align:center;
+          text-transform:uppercase;
+          width:160px;
+          letter-spacing:0.3em;
+          padding:10px;
+          border:3px solid #b84a1a;
+          border-radius:12px;
+          color:#3c8c8c;
+          background:rgba(255,248,225,0.9);
+          letter-spacing:0.2em;
+          align-self:center;
+        ">
+      <button id="initials-submit-btn" style="
+          font-family:'Righteous',sans-serif;
+          font-size:20px;
+          background:linear-gradient(135deg,#b84a1a,#e07030);
+          color:white;
+          border:none;
+          border-radius:14px;
+          padding:12px 0;
+          width:100%;
+          cursor:pointer;
+          box-shadow:0 4px 16px rgba(184,74,26,0.4);
+        ">
+        ✍️ SUBMIT &amp; SEE DEBRIEF
+      </button>
+    </div>
+  </div>
+
   <!-- ── End Screen (debrief / report card) ───────────────────────── -->
   <div id="end-screen">
     <div class="start-card">
@@ -796,12 +883,12 @@
       <!-- Hero stats: tankers destroyed + oil spilled -->
       <div class="end-hero">
         <div class="end-hero-stat">
-          <div class="end-hero-icon">🚢</div>
+          <img src="./wreck_icon.png" style="width:64px;height:64px;object-fit:contain;">
           <div class="end-hero-num" id="end-tankers">0</div>
           <div class="end-hero-label">Tankers Destroyed</div>
         </div>
         <div class="end-hero-stat">
-          <div class="end-hero-icon">🛢️</div>
+          <img src="./oil_icon.png" style="width:64px;height:64px;object-fit:contain;">
           <div class="end-hero-num" id="end-oil">0.0M</div>
           <div class="end-hero-label">Barrels Spilled</div>
         </div>
@@ -833,6 +920,26 @@
 
       <!-- Quip (Bible verse for now) -->
       <div class="end-quip" id="end-quip"></div>
+
+      <!-- Leaderboard -->
+      <hr class="start-divider">
+      <div class="leaderboard-card">
+        <div class="leaderboard-title">🏆 Top Sweepers</div>
+        <table class="leaderboard-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Name</th>
+              <th>Mines</th>
+            </tr>
+          </thead>
+          <tbody id="leaderboard-body">
+            <tr>
+              <td colspan="3" style="text-align:center;opacity:0.5;">Loading...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
       <!-- Ad banner — populated by main.js on end-screen show -->
       <div class="ad-wrapper">

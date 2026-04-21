@@ -39,6 +39,7 @@ export function createInput() {
   }
 
   window.addEventListener('keydown', e => {
+    if (document.activeElement.id === 'initials-input') return;
     const action = KEY_MAP[e.code];
     if (action) {
       state[action] = true;

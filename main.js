@@ -12,6 +12,49 @@ import { ADS }             from './BugmanAds/ads-data.js';
 import { createSoundEngine } from './sound.js';
 import { resultForMinesLeft } from './results.js';
 
+// ─── Supabase ─────────────────────────────────────────────────────────────────
+const SUPABASE_URL = 'https://iyhvjnymuntqszejdnkx.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_LW_47VRbX2cV-znzs6CDVQ_MxjHuf3O';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+async function fetchLeaderboard() {
+  const tbody = document.getElementById('leaderboard-body');
+  tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;opacity:0.5;">Loading...</td></tr>';
+  const { data, error } = await sb
+    .from('leaderboard')
+    .select('name, score')
+    .order('score', { ascending: false })
+    .limit(10);
+  if (error || !data) {
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;opacity:0.5;">Unavailable</td></tr>';
+    return [];
+  }
+  return data;
+}
+
+function renderLeaderboard(data, highlightScore) {
+  const tbody = document.getElementById('leaderboard-body');
+  if (!data || data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;opacity:0.5;">No scores yet</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.map((row, i) => {
+    const highlight = row.score === highlightScore ? ' class="lb-highlight"' : '';
+    return `<tr${highlight}>
+      <td>${i + 1}</td>
+      <td>${row.name}</td>
+      <td>${row.score}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function submitScore(name, minesCleared) {
+  const { error } = await sb
+    .from('leaderboard')
+    .insert({ name: name, score: minesCleared });
+  if (error) console.log('submitScore error:', error);
+}
+
 // ─── Grid / map constants ─────────────────────────────────────────────────────
 const COLS = 52;
 const ROWS = 33;
@@ -36,7 +79,8 @@ const SHIP_CONFIGS = {
   motorboat: {
     baseSpeed:     70,
     boostSpeed:    140,
-    countdown:     30,
+    countdown:     10,
+    hpMax:         100,
     soundRpm:      2600,
     soundBoostRpm: 3600,
     soundFilterHz: 300,
@@ -44,7 +88,8 @@ const SHIP_CONFIGS = {
   motorboat_2: {
     baseSpeed:     110,
     boostSpeed:    180,
-    countdown:     75,
+    countdown:     45,
+    hpMax:         60,
     soundRpm:      3200,
     soundBoostRpm: 4800,
     soundFilterHz: 700,
@@ -55,7 +100,7 @@ let selectedShip = 'motorboat';   // default selection
 const ANCHOR_COUNT       = 30;
 const ANCHOR_RADIUS      = SIZE * 1.2;
 const ANCHOR_DAMAGE      = 10;
-const HP_MAX             = 100;
+let hpMax                = 100;  // overwritten at start by selected ship's config
 const HP_PER_COLLISION   = 10;
 const COLLISION_COOLDOWN = 1.5;
 const COUNTDOWN_START    = 120;
@@ -70,9 +115,9 @@ const INTRO_DURATION   = 2.2;
 const RADAR_COOLDOWN = 4.0;   // seconds between pings
 
 // ─── Hourglass constants ──────────────────────────────────────────────────────
-const HOURGLASS_COUNT  = 6;
+const HOURGLASS_COUNT  = 4;
 const HOURGLASS_RADIUS = SIZE * 1.2;   // same pickup radius as mines
-const HOURGLASS_BONUS  = 15;           // seconds added to timer on collection
+const HOURGLASS_BONUS  = 10;           // seconds added to timer on collection
 
 // ─── Depth charge constants ───────────────────────────────────────────────────
 const DC_MAX_CHARGES    = 3;
@@ -131,7 +176,7 @@ function vibrate(pattern) {
   renderer.setMarkers(markers);
 
   // ── Random hourglass placement ────────────────────────────────────────────
-  let hourglasses = terrain.getRandomWaterHexes(HOURGLASS_COUNT)
+  let hourglasses = terrain.getPerimeterWaterHexes(HOURGLASS_COUNT)
     .map(({ x, y }) => ({ x, y, collected: false }));
   renderer.setHourglasses(hourglasses);
 
@@ -179,7 +224,7 @@ function vibrate(pattern) {
   );
 
   // ── Game state ────────────────────────────────────────────────────────────
-  let hp            = HP_MAX;
+  let hp            = hpMax;
   let wasBlocked    = false;
   let cooldownTimer = 0;
   let anchorsFound  = 0;
@@ -214,13 +259,13 @@ function vibrate(pattern) {
   ];
 
   function updateHpHud(currentHp) {
-    const pct = (currentHp / HP_MAX) * 100;
+    const pct = (currentHp / hpMax) * 100;
     if (hpFillEl) {
       hpFillEl.style.width      = `${pct}%`;
       hpFillEl.style.background =
         pct > 60 ? '#4caf82' : pct > 30 ? '#e8a838' : '#e84c38';
     }
-    if (hpTextEl) hpTextEl.textContent = `${currentHp} / ${HP_MAX}`;
+    if (hpTextEl) hpTextEl.textContent = `${currentHp} / ${hpMax}`;
   }
 
   function updateTallyHud() {
@@ -388,32 +433,60 @@ function vibrate(pattern) {
   // only input that changes the content is minesLeft (= ANCHOR_COUNT - found).
   // `reason` is kept as a parameter for future differentiation but currently
   // unused — every run just looks up the row and fills the card.
-  function triggerEnd(reason) {
+  async function triggerEnd(reason) {
     _stopGame();
-    sound.stopEngine();   // silence the motorboat — fades out over ~0.3s
+    sound.stopEngine();
 
     const minesLeft = ANCHOR_COUNT - anchorsFound;
-    const row       = resultForMinesLeft(minesLeft);
+    const row = resultForMinesLeft(minesLeft);
 
-    // Hero stats
+    // Fill end screen content
     document.getElementById('end-tankers').textContent = row.tankers;
-    document.getElementById('end-oil').textContent     = `${row.oilB.toFixed(1)}B`;
-    // Secondary stat
-    document.getElementById('end-hull').textContent    = `Hull: ${hp} / ${HP_MAX}`;
-    // 2x2 verdicts
-    document.getElementById('end-economic').textContent   = row.economic;
+    document.getElementById('end-oil').textContent = `${row.oilB.toFixed(1)}M`;
+    document.getElementById('end-hull').textContent = `Hull: ${hp} / ${hpMax}`;
+    document.getElementById('end-economic').textContent = row.economic;
     document.getElementById('end-ecological').textContent = row.ecological;
-    document.getElementById('end-political').textContent  = row.political;
-    document.getElementById('end-future').textContent     = row.future;
-    // Quip
-    document.getElementById('end-quip').textContent       = row.quip;
-    // Fresh random ad
+    document.getElementById('end-political').textContent = row.political;
+    document.getElementById('end-future').textContent = row.future;
+    document.getElementById('end-quip').textContent = row.quip;
     populateAdSlot('endScreenAd');
 
-    // Hide HUD/controls, show end screen
     document.getElementById('hud').classList.remove('visible');
     document.getElementById('controls').classList.remove('visible');
-    document.getElementById('end-screen').style.display = 'flex';
+
+    // Fetch current leaderboard to check if score qualifies
+    const currentBoard = await fetchLeaderboard();
+    const lowestTop10 = currentBoard.length < 10
+      ? 0
+      : currentBoard[currentBoard.length - 1].score;
+    const isHighScore = anchorsFound > lowestTop10;
+
+    if (isHighScore) {
+      // Show initials screen first
+      document.getElementById('initials-score').textContent = anchorsFound;
+      const initialsScreen = document.getElementById('initials-screen');
+      const initialsInput = document.getElementById('initials-input');
+      initialsScreen.style.display = 'flex';
+      document.getElementById('sailCanvas').style.pointerEvents = 'none';
+      initialsInput.value = '';
+      initialsInput.focus();
+
+      // Wait for submit button
+      document.getElementById('initials-submit-btn').onclick = async () => {
+        console.log('submit clicked, name will be:', initialsInput.value);
+        const name = initialsInput.value.trim().toUpperCase().slice(0, 3) || '???';
+        initialsScreen.style.display = 'none';
+        document.getElementById('sailCanvas').style.pointerEvents = 'auto';
+        await submitScore(name, anchorsFound);
+        const updatedBoard = await fetchLeaderboard();
+        renderLeaderboard(updatedBoard, anchorsFound);
+        document.getElementById('end-screen').style.display = 'flex';
+      };
+    } else {
+      // No high score — show results directly with leaderboard
+      renderLeaderboard(currentBoard, null);
+      document.getElementById('end-screen').style.display = 'flex';
+    }
   }
 
   // Full in-place reset — wipes every piece of game state so the player can
@@ -430,7 +503,7 @@ function vibrate(pattern) {
     populateAdSlot('startScreenAd');
 
     // Reset scalar game state
-    hp             = HP_MAX;
+    hp             = hpMax;
     wasBlocked     = false;
     cooldownTimer  = 0;
     anchorsFound   = 0;
@@ -450,7 +523,7 @@ function vibrate(pattern) {
     markers = terrain.getRandomWaterHexes(ANCHOR_COUNT)
       .map(({ x, y }) => ({ x, y, reached: false }));
     renderer.setMarkers(markers);
-    hourglasses = terrain.getRandomWaterHexes(HOURGLASS_COUNT)
+    hourglasses = terrain.getPerimeterWaterHexes(HOURGLASS_COUNT)
       .map(({ x, y }) => ({ x, y, collected: false }));
     renderer.setHourglasses(hourglasses);
     updateHpHud(hp);
@@ -475,6 +548,7 @@ function vibrate(pattern) {
   function startIntro() {
     const cfg = SHIP_CONFIGS[selectedShip];
     ship.setSpeeds(cfg.baseSpeed, cfg.boostSpeed);
+    hpMax = cfg.hpMax;
     timeRemaining = cfg.countdown;
     updateTimerHud(timeRemaining);
     renderer.setShipImage(selectedShip);

@@ -560,6 +560,16 @@
       margin-top: -6px;
       }
 
+    /* Section label above verdicts */
+    .end-section-label {
+      font-family: 'Righteous', sans-serif;
+      font-size: 22px;
+      color: #b84a1a;
+      text-align: center;
+      text-shadow: 1px 2px 0 rgba(0,0,0,0.12);
+      margin: 0;
+    }
+
     /* 2x2 grid of flavor verdicts */
     .end-verdicts {
       display: grid;
@@ -586,18 +596,47 @@
       line-height: 1.35;
     }
 
-    /* Bible-verse quip area */
+    /* Quint banner area */
     .end-quip {
-      font-style: italic;
+      position: relative;
+      width: 100%;
+      box-sizing: border-box;
+      border-radius: 6px;
+      overflow: hidden;
+      margin: 2px 0;
+      min-height: 80px;
+      background: #3a2a18; /* dark fallback while image loads */
+    }
+    .end-quip img.quint-bg {
+      display: block;
+      width: 100%;
+      height: auto;
+      border-radius: 6px;
+      min-height: 80px;
+      object-fit: cover;
+    }
+    .end-quip .quint-text-block {
+      position: absolute;
+      top: 50%;
+      right: 6%;
+      transform: translateY(-50%);
+      width: 70%;
       text-align: center;
-      color: #4a3520;
+      text-shadow: 1px 1px 3px rgba(0,0,0,0.7), 0 0 8px rgba(0,0,0,0.5);
+    }
+    .end-quip .quint-title {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(232, 200, 122, 0.95);
+      margin-bottom: 3px;
+    }
+    .end-quip .quint-quote {
+      font-style: italic;
       font-size: 13px;
       line-height: 1.4;
-      padding: 4px 6px;
-      border-top: 1px dashed rgba(184, 74, 26, 0.25);
-      border-bottom: 1px dashed rgba(184, 74, 26, 0.25);
-      padding-top: 10px;
-      padding-bottom: 10px;
+      color: rgba(255, 245, 220, 0.92);
     }
 
     /* ══════════════════════════════════════════════
@@ -1108,10 +1147,12 @@
         <p class="start-desc" style="text-align:left;">
           Colliding with land or running over mines will damage the hull unless your shield is activated<br><br>
           The shield is also the brake (and let's you make tighter turns)<br><br>
+          Use depth charges for mine collection at a distance<br><br>
           Zoom out or use radar to identify mine locations<br><br>
-          You get 3 depth charges for mass (and safe) mine collection <br><br>
+          Collect hourglasses for extra time<br><br>
           There's no way to stop the boat - ain't nobody got time for that!<br><br>
-          The depth of your failure will be assessed once you wreck or run out of time.
+          <strong>Easy mode:</strong> a full sized screen and keyboard make the game much simpler.  
+          It plays in any browser window - just paste the URL.
         </p>
         <button id="how-to-close" class="overlay-btn" style="background:#3c8c8c;">← Back</button>
       </div>
@@ -1209,6 +1250,9 @@
 
       <hr class="start-divider">
 
+      <!-- Section label -->
+      <div class="end-section-label">IMPACT</div>
+
       <!-- 2x2 grid of flavor verdicts -->
       <div class="end-verdicts">
         <div class="end-verdict">
@@ -1229,8 +1273,14 @@
         </div>
       </div>
 
-      <!-- Quip (Bible verse for now) -->
-      <div class="end-quip" id="end-quip"></div>
+      <!-- Quint banner with random quote -->
+      <div class="end-quip" id="end-quip">
+        <img class="quint-bg" src="./quint.png" alt="Quint">
+        <div class="quint-text-block">
+          <div class="quint-title">Quint's Advice</div>
+          <div class="quint-quote" id="quint-quote-text"></div>
+        </div>
+      </div>
 
       <!-- Leaderboard -->
       <hr class="start-divider">

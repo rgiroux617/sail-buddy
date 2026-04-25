@@ -219,7 +219,7 @@ const SHIP_CONFIGS = {
   motorboat: {
     baseSpeed:     70,
     boostSpeed:    140,
-    countdown:     3,
+    countdown:     60,
     hpMax:         100,
     turnRate:      72,
     dcCharges:     4,
@@ -241,7 +241,7 @@ const SHIP_CONFIGS = {
   jetboat: {
     baseSpeed:     95,
     boostSpeed:    200,
-    countdown:     60,
+    countdown:     50,
     hpMax:         80,
     turnRate:      180,
     dcCharges:     3,
@@ -252,8 +252,8 @@ const SHIP_CONFIGS = {
   destroyer: {
     baseSpeed:     45,
     boostSpeed:    90,
-    countdown:     50,
-    hpMax:         100,
+    countdown:     60,
+    hpMax:         200,
     turnRate:      40,
     dcCharges:     6,
     soundRpm:      2200,
@@ -643,7 +643,39 @@ function vibrate(pattern) {
     document.getElementById('end-ecological').textContent = row.ecological;
     document.getElementById('end-political').textContent = row.political;
     document.getElementById('end-future').textContent = row.future;
-    document.getElementById('end-quip').textContent = row.quip;
+    // Quint banner: pick a random quote from the group matching mines cleared
+    const QUINT_QUOTES = {
+      // Good run: cleared 21–30 mines
+      high: [
+        '"I\'m not talking about pleasure boatin\' or day sailin. This is minesweepin!"',
+        '"Easy on the throttle lad - it makes all the difference."',
+        '"Farewell and adieu to you, fair Spanish ladies."',
+        '"A proper effort - next we hunt the Great White!"',
+        '"We could have used you on the USS Indianapolis."',
+      ],
+      // Mid run: cleared 11–20 mines
+      mid: [
+        '"Japanese submarine slammed two torpedoes into our side, Chief."',
+        '"Sometimes that shark, he looks right into ya. Where am I?"',
+        '"The thing about a shark... he\'s got lifeless eyes. Black eyes. Like a doll\'s eyes."',
+        '"We\'re not going to make it to the harbor."',
+        '"Shop Bugman Pawn & Loan for the most affordable rations in the North Sea."',
+      ],
+      // Bad run: cleared 0–10 mines
+      low: [
+        '"You\'re going to need a lot more than a bigger boat, son."',
+        '"You\'re spazzing out, kid. Chill."',
+        '"They shouldn\'t let slack-jaws like you go out to sea "',
+        '"Here\'s to swimming with bow-legged women."',
+        '"You pull that cork out and the sea goes in and the boat goes down. Just like that."',
+      ],
+    };
+    let quoteGroup;
+    if (anchorsFound >= 21)      quoteGroup = QUINT_QUOTES.high;
+    else if (anchorsFound >= 11) quoteGroup = QUINT_QUOTES.mid;
+    else                          quoteGroup = QUINT_QUOTES.low;
+    const randomQuote = quoteGroup[Math.floor(Math.random() * quoteGroup.length)];
+    document.getElementById('quint-quote-text').textContent = randomQuote;
     populateAdSlot('endScreenAd');
 
     document.getElementById('hud').classList.remove('visible');

@@ -135,8 +135,8 @@
     .controls-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 8px 16px;
-      padding-left: 46px;
+      gap: 8px 8px;
+      padding-left: 20px;
     }
 
     .ctrl-row {
@@ -191,7 +191,7 @@
       color: white;
       border: none;
       border-radius: 14px;
-      padding: 14px 0;
+      padding: 8px 0;
       width: 100%;
       cursor: pointer;
       box-shadow: 0 4px 16px rgba(184,74,26,0.4);
@@ -245,9 +245,9 @@
       to   { transform: translateX(-100%); }
     }
 
-.how-to-leaving {
-  animation: slideOutLeft 0.3s ease forwards;
-}
+    .how-to-leaving {
+      animation: slideOutLeft 0.3s ease forwards;
+    }
     /* ══════════════════════════════════════════════
        SHIP PICKER
     ══════════════════════════════════════════════ */
@@ -263,12 +263,36 @@
     .ship-options {
       display: flex;
       gap: 14px;
-      justify-content: center;
+      overflow-x: scroll;
+      overflow-y: visible;
+      scroll-snap-type: x mandatory;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      padding-left: calc(50% - 85px);
+      padding-right: calc(50% - 85px);
+      padding-bottom: 4px;
+      min-height: 260px;
     }
+    .ship-options::-webkit-scrollbar { display: none; }
+
+    .ship-dots {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 2px;
+    }
+    .ship-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: rgba(0,0,0,0.18);
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .ship-dot.active { background: #b84a1a; }
 
     .ship-card {
-      flex: 1;
-      max-width: 170px;
+      flex: 0 0 170px;
+      scroll-snap-align: center;
       border: 3px solid rgba(0,0,0,0.12);
       border-radius: 12px;
       padding: 12px 10px;
@@ -280,6 +304,7 @@
       transition: border-color 0.2s ease, box-shadow 0.2s ease;
       background: rgba(255,255,255,0.55);
       user-select: none;
+      position: relative;   /* needed for lock overlay */
     }
 
     @keyframes shipRock {
@@ -417,8 +442,8 @@
       margin-top: 2px;
     }
     .dc-icon {
-      width: 28px;
-      height: 28px;
+      width: 48px;
+      height: 48px;
       object-fit: contain;
       filter: drop-shadow(0 1px 4px rgba(255,140,20,0.7));
       transition: opacity 0.2s ease, filter 0.2s ease;
@@ -649,7 +674,7 @@
     }
 
     .leaderboard-card {
-      background: rgba(180, 220, 230, 0.25);
+      background: rgba(180, 220, 230, 0.15);
       border-radius: 16px;
       padding: 16px 12px;
     }
@@ -685,6 +710,192 @@
       color: #b84a1a;
     }
 
+        /* Keyboard keycap style */
+    .ctrl-key-kb {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+    }
+    .keycap {
+      background: #3a3a3a;
+      color: #f0f0f0;
+      border: 1px solid #666;
+      border-bottom: 3px solid #222;
+      border-radius: 5px;
+      padding: 2px 7px;
+      font-family: 'Nunito', sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    /* Toggle pills in subtitle */
+    .ctrl-toggle {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 6px;
+      grid-column: 1 / -1;
+      margin-left: -6px;
+      margin-bottom: 4px;
+    }
+    .ctrl-toggle-btn {
+      font-family: 'Righteous', sans-serif;
+      font-size: 12px;
+      padding: 3px 12px;
+      border-radius: 20px;
+      border: none;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      letter-spacing: 0.05em;
+    }
+    .ctrl-toggle-btn.active {
+      background: #3c8c8c;
+      color: white;
+    }
+    .ctrl-toggle-btn:not(.active) {
+      background: rgba(0,0,0,0.08);
+      color: #888;
+    }
+    /* ══════════════════════════════════════════════
+       MAP PICKER CAROUSEL
+    ══════════════════════════════════════════════ */
+    .map-picker-title {
+      font-family: 'Righteous', sans-serif;
+      font-size: 20px;
+      color: #3c8c8c;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      text-align: center;
+    }
+
+    /* The scrollable strip. padding-right lets the last card stop short of the
+       edge so the user can tell there's no fourth card hiding off-screen. */
+    .map-carousel {
+      display: flex;
+      gap: 12px;
+      overflow-x: scroll;
+      overflow-y: visible;
+      scroll-snap-type: x mandatory;
+      scroll-padding-inline: 50%;   /* snap point is the center of the container */
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      padding-bottom: 4px;
+      /* Equal side padding lets the first and last cards reach center position.
+         calc(50% - 100px) = half the carousel width minus half the card width. */
+      padding-left: calc(50% - 100px);
+      padding-right: calc(50% - 100px);
+      min-height: 160px;   /* prevents height collapse inside overflow-y:auto parent */
+    }
+    .map-carousel::-webkit-scrollbar { display: none; }
+
+    /* Fixed pixel width avoids the percentage-in-scroll-container quirk where
+       Chrome collapses flex item height when overflow-x:scroll sits inside an
+       overflow-y:auto parent (the start-card). */
+    .map-card {
+      flex: 0 0 200px;
+      scroll-snap-align: center;
+      border: 3px solid rgba(0,0,0,0.12);
+      border-radius: 12px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      background: rgba(255,255,255,0.55);
+      user-select: none;
+      position: relative;   /* needed for lock overlay */
+    }
+    .map-card.selected {
+      border-color: #b84a1a;
+      box-shadow: 0 0 0 2px rgba(184,74,26,0.25), 0 4px 16px rgba(184,74,26,0.15);
+    }
+    .map-card:hover:not(.selected) {
+      border-color: rgba(184,74,26,0.4);
+    }
+
+    /* Explicit-height wrapper guarantees the image area is 110px tall even
+       before the image loads; teal shows as a fallback if it fails. */
+    .map-thumb-wrap {
+      width: 100%;
+      height: 110px;
+      overflow: hidden;
+      background: #3c8c8c;
+    }
+
+    .map-thumb {
+      width: 100%;
+      height: 110px;
+      object-fit: cover;
+      display: block;
+    }
+
+    .map-card-title {
+      display: block;
+      font-family: 'Righteous', sans-serif;
+      font-size: 13px;
+      color: #4a3520;
+      text-align: center;
+      padding: 8px 6px 9px;
+      letter-spacing: 0.04em;
+    }
+
+    /* Position dots below the carousel */
+    .map-dots {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-top: -2px;
+    }
+    .map-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(0,0,0,0.18);
+      transition: background 0.2s ease;
+      cursor: pointer;
+    }
+    .map-dot.active { background: #b84a1a; }
+    /* ── Lock overlays (progression system) ── */
+    .ship-card.locked,
+    .map-card.locked {
+      cursor: default;
+    }
+    .ship-card.locked:hover,
+    .map-card.locked:hover {
+      border-color: rgba(0,0,0,0.12);   /* suppress the hover highlight */
+      box-shadow: none;
+    }
+    .lock-overlay {
+      position: absolute;
+      inset: 0;
+      border-radius: 9px;              /* card border-radius(12) minus border(3) */
+      background: rgba(50, 50, 60, 0.60);
+      backdrop-filter: blur(2px);
+      -webkit-backdrop-filter: blur(2px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      z-index: 2;
+      pointer-events: none;            /* let clicks pass through for scrolling */
+    }
+    .lock-icon {
+      font-size: 28px;
+      line-height: 1;
+      filter: grayscale(1) brightness(1.8);
+    }
+    .lock-label {
+      font-family: 'Nunito', sans-serif;
+      font-size: 11px;
+      font-weight: 800;
+      color: rgba(255, 255, 255, 0.90);
+      text-align: center;
+      padding: 0 10px;
+      line-height: 1.45;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.7);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      white-space: pre-line;           /* lets \n in label strings create line breaks */
+    }
   </style>
   <script>
     // iOS WebKit does not recognize AudioContext creation inside ES modules
@@ -723,7 +934,7 @@
     <div class="start-card">
 
     <div class="start-title">
-      <span class="start-subtitle">💣 Bugman Industries Presents</span>
+      <span class="start-subtitle">🪰 Bugman Industries Presents</span>
       Minesweeper:<br><span style="color: #d3b90f;">Hormuz</span> Edition
     </div>
 
@@ -737,42 +948,142 @@
 
       <hr class="start-divider">
 
-      <!-- Ship picker -->
+      <!-- Map picker carousel -->
+      <div class="map-picker-title">Pick your Map</div>
+      <div class="map-carousel" id="map-carousel">
+        <div class="map-card" id="map-card-0">
+          <div class="map-thumb-wrap">
+            <img src="./map1_thumb.jpeg" alt="Strait of Hormuz" class="map-thumb">
+          </div>
+          <span class="map-card-title">Aleutian Islands</span>
+        </div>
+        <div class="map-card" id="map-card-1">
+          <div class="map-thumb-wrap">
+            <img src="./map2_thumb.jpeg" alt="South China Sea" class="map-thumb">
+          </div>
+          <span class="map-card-title">South China Sea</span>
+        </div>
+        <div class="map-card" id="map-card-2">
+          <div class="map-thumb-wrap">
+            <img src="./map3_thumb.jpeg" alt="Aleutian Islands" class="map-thumb">
+          </div>
+          <span class="map-card-title">Hormuz</span>
+        </div>
+      </div>
+      <div class="map-dots" id="map-dots">
+        <span class="map-dot" data-index="0"></span>
+        <span class="map-dot" data-index="1"></span>
+        <span class="map-dot" data-index="2"></span>
+      </div>
+
+      <hr class="start-divider">
+
+      <!-- Ship picker carousel -->
       <div class="ship-picker-title">Pick your Ship</div>
-      <div class="ship-options">
-        <div class="ship-card selected" id="ship-motorboat">
+      <div class="ship-options" id="ship-carousel">
+        <div class="ship-card selected" id="ship-card-0" data-ship="motorboat">
           <span class="ship-label-title">Kawasaki XK-8500</span>
-            <div class="ship-img-stripe">
-              <canvas class="ship-wake-canvas"></canvas>
-              <img src="./motorboat.png" alt="Motorboat">
-            </div>
           <span class="ship-label">"The right choice"</span>
+          <div class="ship-img-stripe">
+            <canvas class="ship-wake-canvas"></canvas>
+            <img src="./motorboat.png" alt="Motorboat">
+          </div>
+          <span class="ship-label" style="font-style:normal;text-align:left;">Speed: ★★★☆☆</span>
+          <span class="ship-label" style="font-style:normal;text-align:left;">Hull:&nbsp;&nbsp; ★★★★★</span>
+          <span class="ship-label" style="font-style:normal;text-align:left;">Time:&nbsp;&nbsp; ★★★★☆</span>
         </div>
-        <div class="ship-card" id="ship-motorboat2">
+        <div class="ship-card" id="ship-card-1" data-ship="motorboat_2">
           <span class="ship-label-title">Evinrude Dualthrust</span>
-            <div class="ship-img-stripe">
-              <canvas class="ship-wake-canvas"></canvas>
-              <img src="./motorboat_2.png" alt="Jet Boat">
-            </div>
           <span class="ship-label">"Too much boat for you"</span>
+          <div class="ship-img-stripe">
+            <canvas class="ship-wake-canvas"></canvas>
+            <img src="./motorboat_2.png" alt="Jet Boat">
+          </div>
+          <span class="ship-label" style="font-style:normal;text-align:left;">Speed: ★★★★★</span>
+          <span class="ship-label" style="font-style:normal;text-align:left;">Hull:&nbsp;&nbsp; ★★☆☆☆</span>
+          <span class="ship-label" style="font-style:normal;text-align:left;">Time:&nbsp;&nbsp; ★★★☆☆</span>
         </div>
+        <div class="ship-card" id="ship-card-2" data-ship="destroyer">
+          <span class="ship-label-title">USS Stockdale</span>
+          <span class="ship-label">"Overkill. Absolutely."</span>
+          <div class="ship-img-stripe">
+            <canvas class="ship-wake-canvas"></canvas>
+            <img src="./destroyer.png" alt="Destroyer">
+          </div>
+          <span class="ship-label" style="font-style:normal;text-align:left;">Speed: ★★☆☆☆</span>
+          <span class="ship-label" style="font-style:normal;text-align:left;">Hull:&nbsp;&nbsp; ★★★★★</span>
+          <span class="ship-label" style="font-style:normal;text-align:left;">Time:&nbsp;&nbsp; ★★★☆☆</span>
+        </div>
+        <div class="ship-card" id="ship-card-3" data-ship="jetboat">
+          <span class="ship-label-title">Yamaha Strikecraft</span>
+          <span class="ship-label">"Low and fast"</span>
+          <div class="ship-img-stripe">
+            <canvas class="ship-wake-canvas"></canvas>
+            <img src="./jetboat.png" alt="Jet Boat">
+          </div>
+          <span class="ship-label" style="font-style:normal;text-align:left;">Speed: ★★★★☆</span>
+          <span class="ship-label" style="font-style:normal;text-align:left;">Hull:&nbsp;&nbsp; ★★★☆☆</span>
+          <span class="ship-label" style="font-style:normal;text-align:left;">Time:&nbsp;&nbsp; ★★★★★</span>
+        </div>
+      </div>
+      <div class="ship-dots" id="ship-dots">
+        <span class="ship-dot active" data-index="0"></span>
+        <span class="ship-dot" data-index="1"></span>
+        <span class="ship-dot" data-index="2"></span>
+        <span class="ship-dot" data-index="3"></span>
       </div>
 
       <hr class="start-divider">
 
       <!-- <div class="controls-title">How to Play</div> -->
-
+      <div class="ship-picker-title" style="text-align:center;">Controls</div>
       <div class="controls-grid">
-        <div class="controls-subtitle">Controls</div>
-        <div class="ctrl-row"><span class="ctrl-key">◀ ▶</span> Steer</div>
-        <div class="ctrl-row"><span class="ctrl-key">◀+▶</span> Depth Charge</div>
-        <div class="ctrl-row"><span class="ctrl-key">⚡</span> Boost</div>
-        <div class="ctrl-row"><span class="ctrl-key">🛡</span> Shield</div>
-        <div class="ctrl-row"><span class="ctrl-key">⌖</span> Zoom Out</div>
-        <div class="ctrl-row"><span class="ctrl-key">🛡+⌖</span> Radar</div>
+        <div class="ctrl-toggle">
+          <button class="ctrl-toggle-btn active" id="toggle-touch">Touch</button>
+          <button class="ctrl-toggle-btn" id="toggle-kb">Keyboard</button>
+        </div>
+
+        <div class="ctrl-row">
+          <span class="ctrl-key ctrl-touch">◀ ▶</span>
+          <span class="ctrl-key-kb ctrl-kb" style="display:none;"><span class="keycap">&lt;</span><span
+              class="keycap">&gt;</span></span>
+          Steer
+        </div>
+        <div class="ctrl-row">
+          <span class="ctrl-key ctrl-touch">🛡</span>
+          <span class="ctrl-key-kb ctrl-kb" style="display:none;"><span class="keycap">A</span></span>
+          Shield / Brake
+        </div>
+        <div class="ctrl-row">
+          <span class="ctrl-key ctrl-touch">⚡</span>
+          <span class="ctrl-key-kb ctrl-kb" style="display:none;"><span class="keycap">S</span></span>
+          Boost
+        </div>
+        <div class="ctrl-row">
+          <span class="ctrl-key ctrl-touch">⌖</span>
+          <span class="ctrl-key-kb ctrl-kb" style="display:none;"><span class="keycap">D</span></span>
+          Zoom Out
+        </div>
+        <div class="ctrl-row">
+          <span class="ctrl-key ctrl-touch">◀+▶</span>
+          <span class="ctrl-key-kb ctrl-kb" style="display:none;"><span class="keycap">&lt;</span>+<span class="keycap">&gt;</span></span>
+          Depth Charge
+        </div>
+        <div class="ctrl-row">
+          <span class="ctrl-key ctrl-touch">🛡+⌖</span>
+          <span class="ctrl-key-kb ctrl-kb" style="display:none;"><span class="keycap">A</span>+<span class="keycap">D</span></span>
+          Radar
+        </div>
+
         <div class="controls-subtitle">Hull Damage — use your shields!</div>
-        <div class="ctrl-row"><span class="ctrl-key">💣</span> −10 HP</div>
-        <div class="ctrl-row"><span class="ctrl-key">⛰</span> −10 HP coastline</div>
+        <div class="ctrl-row">
+        <span class="ctrl-key"><img src="./mine.png" style="width:16px;height:16px;vertical-align:middle;"></span>
+          −10 HP mine
+        </div>
+        <div class="ctrl-row">
+          <span class="ctrl-key">⛰</span>
+          −10 HP coastline
+        </div>
       </div>
 
       <hr class="start-divider">
@@ -784,7 +1095,7 @@
 
       <hr class="start-divider">
 
-      <button id="go-btn">⚓ SAVE THE DAY ⚓</button>
+      <button id="go-btn">🚨   SAVE THE DAY   🚨</button>
 
     </div>
 
@@ -792,12 +1103,14 @@
       <div class="start-card">
         <div class="start-title" style="font-size:24px;">How to Play</div>
         <p class="start-desc" style="text-align:left;">
-          Clear as many of the 30 mines as you can in 90s (75s for the Dualthrust).<br><br>
+          Clear as many of the 30 mines as you can in 60s (45s for the Dualthrust).<br><br></p>
+        <div class="ship-picker-title">Tips for Play</div>
+        <p class="start-desc" style="text-align:left;">
           Colliding with land or running over mines will damage the hull unless your shield is activated<br><br>
           The shield is also the brake (and let's you make tighter turns)<br><br>
           Zoom out or use radar to identify mine locations<br><br>
           You get 3 depth charges for mass (and safe) mine collection <br><br>
-          There's no way to fully stop the boat - ain't nobody got time for that!<br><br>
+          There's no way to stop the boat - ain't nobody got time for that!<br><br>
           The depth of your failure will be assessed once you wreck or run out of time.
         </p>
         <button id="how-to-close" class="overlay-btn" style="background:#3c8c8c;">← Back</button>
@@ -807,15 +1120,13 @@
 
   <!-- ── Game HUD ──────────────────────────────────────────────────── -->
   <div id="hud">
-    <div id="anchor-tally">💣 0 / 30</div>
+    <div id="anchor-tally"><img src="./mine.png" style="width:20px;height:20px;vertical-align:middle;"> 0 / 30</div>
     <div id="timer">2:00.00</div>
     <div id="hp-label">Hull integrity</div>
     <div id="hp-track"><div id="hp-fill"></div></div>
     <div id="hp-text">100 / 100</div>
     <div id="dc-charges">
-      <img id="dc-icon-0" class="dc-icon" src="./depth-charge.png" alt="Depth charge" title="Depth charge">
-      <img id="dc-icon-1" class="dc-icon" src="./depth-charge.png" alt="Depth charge" title="Depth charge">
-      <img id="dc-icon-2" class="dc-icon" src="./depth-charge.png" alt="Depth charge" title="Depth charge">
+      <!-- depth charge icons are built dynamically by main.js based on selected ship -->
     </div>
   </div>
 
@@ -876,7 +1187,7 @@
     <div class="start-card">
 
       <div class="start-title">
-        <span class="start-subtitle">💣 Bugman Industries Top Secret</span>
+        <span class="start-subtitle">🪰 Bugman Industries Top Secret</span>
         DEBRIEF
       </div>
 
@@ -924,13 +1235,14 @@
       <!-- Leaderboard -->
       <hr class="start-divider">
       <div class="leaderboard-card">
-        <div class="leaderboard-title">🏆 Top Sweepers</div>
+        <div class="leaderboard-title">🏆 Top Sweepers 🏆</div>
         <table class="leaderboard-table">
           <thead>
             <tr>
               <th>#</th>
               <th>Name</th>
               <th>Mines</th>
+              <th></th>
             </tr>
           </thead>
           <tbody id="leaderboard-body">
@@ -968,6 +1280,27 @@
     </div>
   </div>
 
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const touchBtn = document.getElementById('toggle-touch');
+      const kbBtn = document.getElementById('toggle-kb');
+
+      function setMode(mode) {
+        const isKb = mode === 'kb';
+        touchBtn.classList.toggle('active', !isKb);
+        kbBtn.classList.toggle('active', isKb);
+        document.querySelectorAll('.ctrl-touch').forEach(el => {
+          el.style.display = isKb ? 'none' : '';
+        });
+        document.querySelectorAll('.ctrl-kb').forEach(el => {
+          el.style.display = isKb ? 'inline-flex' : 'none';
+        });
+      }
+
+      touchBtn.addEventListener('click', () => setMode('touch'));
+      kbBtn.addEventListener('click', () => setMode('kb'));
+    });
+  </script>
   <script type="module" src="./main.js"></script>
   <script type="module" src="./BugmanAds/ad-engine.js"></script>
 
@@ -1047,4 +1380,4 @@
 
 </body>
 </html>
-                                                                         
+  

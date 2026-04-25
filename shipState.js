@@ -8,7 +8,7 @@
 
 const DEFAULT_BASE_SPEED  = 55;    // world-pixels per second, normal sailing
 const DEFAULT_BOOST_SPEED = 110;   // world-pixels per second, boosted
-const TURN_RATE           = 72;    // degrees per second
+const DEFAULT_TURN_RATE   = 72;    // degrees per second — overridden per ship via setTurnRate()
 const SHIELD_SPEED_MULT   = 0.4;   // 60% speed reduction while shielded — tweak freely
 
 export function createShipState({ startX, startY, startHeading = 0,
@@ -20,12 +20,13 @@ export function createShipState({ startX, startY, startHeading = 0,
   let blocked       = false;
   let currentBase   = baseSpeed;
   let currentBoost  = boostSpeed;
+  let turnRate      = DEFAULT_TURN_RATE;
 
   return {
     update(dt, input, terrain = null, mapW = 0, mapH = 0) {
       // 1. Turn — still works even while braking
-      if (input.turnLeft)  heading -= TURN_RATE * dt;
-      if (input.turnRight) heading += TURN_RATE * dt;
+      if (input.turnLeft)  heading -= turnRate * dt;
+      if (input.turnRight) heading += turnRate * dt;
       heading = ((heading % 360) + 360) % 360;
 
       // 2. Speed — boost increases, shield slows movement
@@ -68,5 +69,6 @@ export function createShipState({ startX, startY, startHeading = 0,
     setPosition(nx, ny) { x = nx; y = ny; },
     setHeading(deg)     { heading = ((deg % 360) + 360) % 360; },
     setSpeeds(base, boost) { currentBase = base; currentBoost = boost; },
+    setTurnRate(deg)    { turnRate = deg; },
   };
 }

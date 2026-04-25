@@ -22,7 +22,7 @@ async function fetchLeaderboard() {
   tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;opacity:0.5;">Loading...</td></tr>';
   const { data, error } = await sb
     .from('leaderboard')
-    .select('name, score')
+    .select('name, score, device')
     .order('score', { ascending: false })
     .limit(10);
   if (error || !data) {
@@ -35,24 +35,164 @@ async function fetchLeaderboard() {
 function renderLeaderboard(data, highlightScore) {
   const tbody = document.getElementById('leaderboard-body');
   if (!data || data.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;opacity:0.5;">No scores yet</td></tr>';
+    // ← change 1: colspan bumped from 3 to 4 to cover the new icon column
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;opacity:0.5;">No scores yet</td></tr>';
     return;
   }
   tbody.innerHTML = data.map((row, i) => {
     const highlight = row.score === highlightScore ? ' class="lb-highlight"' : '';
+    // ← change 2: determine the icon from the device field
+    const icon = row.device === 'desktop' ? '🖥️' : '📱';
     return `<tr${highlight}>
       <td>${i + 1}</td>
       <td>${row.name}</td>
       <td>${row.score}</td>
-    </tr>`;
+      <td>${icon}</td>
+    </tr>`;  // ← change 3: new <td> added for the icon
   }).join('');
 }
 
 async function submitScore(name, minesCleared) {
+  const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)
+    || window.innerWidth < 768;
+  const device = isMobile ? 'mobile' : 'desktop';
+
   const { error } = await sb
     .from('leaderboard')
-    .insert({ name: name, score: minesCleared });
+    .insert({ name, score: minesCleared, device });
   if (error) console.log('submitScore error:', error);
+}
+
+// ─── Player progression (device-based, Supabase-backed) ──────────────────────
+// Each device gets a UUID on first visit stored in localStorage.
+// That ID is the primary key in the `players` Supabase table.
+function getDeviceId() {
+  let id = localStorage.getItem('sb_device_id');
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem('sb_device_id', id);
+  }
+  return id;
+}
+const DEVICE_ID = getDeviceId();
+
+// Live state — populated by loadPlayerRecord() on boot.
+// Maps 1+2 and motorboat+motorboat_2 are always unlocked; only these three are gated.
+let playerRecord = {
+  total_mines: 0,
+  unlocks: { map_3: false, destroyer: false, jetboat: false },
+};
+
+// Locks are only enforced after the player record has loaded.
+// This flag prevents the initial selectMap/selectShip calls from being blocked.
+let progressionLoaded = false;
+
+async function loadPlayerRecord() {
+  const { data, error } = await sb
+    .from('players')
+    .select('total_mines, unlocks')
+    .eq('device_id', DEVICE_ID)
+    .single();
+
+  if (!error && data) {
+    playerRecord = {
+      total_mines: data.total_mines || 0,
+      unlocks: {
+        map_3: data.unlocks?.map_3 || false,
+        destroyer: data.unlocks?.destroyer || false,
+        jetboat: data.unlocks?.jetboat || false,
+      },
+    };
+    console.log('loadPlayerRecord OK:', playerRecord);
+  } else {
+    console.log('loadPlayerRecord — no row found, creating one. error:', error?.message);
+    const { error: insertError } = await sb
+      .from('players')
+      .insert({ device_id: DEVICE_ID, total_mines: 0, unlocks: {} });
+    if (insertError) console.log('insert error:', insertError.message);
+    else console.log('insert OK — fresh player row created');
+  }
+}
+
+// Fire-and-forget — called after each run ends. Doesn't block the UI.
+function savePlayerRecord() {
+  sb.from('players').upsert({
+    device_id: DEVICE_ID,
+    total_mines: playerRecord.total_mines,
+    unlocks: playerRecord.unlocks,
+    updated_at: new Date().toISOString(),
+  }).then(({ error }) => {
+    if (error) console.log('savePlayerRecord error:', error);
+    else console.log('savePlayerRecord OK — total_mines:', playerRecord.total_mines, 'unlocks:', playerRecord.unlocks);
+  });
+}
+
+// Returns true if any unlock was newly granted.
+function checkAndGrantUnlocks(runMines, madLeaderboard) {
+  let changed = false;
+  // Map 3: clear ≥ 20 mines in a single run on map 1 or 2
+  if (!playerRecord.unlocks.map_3 && runMines >= 20 && selectedMapIndex < 2) {
+    playerRecord.unlocks.map_3 = true;
+    changed = true;
+  }
+  // Destroyer: ever make the leaderboard (top 10 at time of submission)
+  if (!playerRecord.unlocks.destroyer && madLeaderboard) {
+    playerRecord.unlocks.destroyer = true;
+    changed = true;
+  }
+  // Jetboat: accumulate 100 total mines across all runs
+  if (!playerRecord.unlocks.jetboat && playerRecord.total_mines >= 100) {
+    playerRecord.unlocks.jetboat = true;
+    changed = true;
+  }
+  return changed;
+}
+
+// Lock helpers — SHIP_KEYS order: motorboat(0), motorboat_2(1), destroyer(2), jetboat(3)
+function isShipLocked(index) {
+  if (!progressionLoaded) return false;
+  if (index === 2) return !playerRecord.unlocks.destroyer;
+  if (index === 3) return !playerRecord.unlocks.jetboat;
+  return false;
+}
+function isMapLocked(index) {
+  if (!progressionLoaded) return false;
+  if (index === 2) return !playerRecord.unlocks.map_3;
+  return false;
+}
+
+// Lock label copy — matches SHIP_KEYS and MAPS order respectively.
+const SHIP_LOCK_LABELS = [null, null, 'Make the leaderboard', 'Clear 100 total mines'];
+const MAP_LOCK_LABELS  = [null, null, 'Clear 20 mines\nin one run'];
+
+// Injects or removes lock overlays on every ship and map card.
+// Safe to call multiple times — always rebuilds from current playerRecord.
+function applyUnlockUI() {
+  document.querySelectorAll('.ship-card').forEach((card, i) => {
+    card.querySelector('.lock-overlay')?.remove();
+    if (isShipLocked(i)) {
+      card.classList.add('locked');
+      const ov = document.createElement('div');
+      ov.className = 'lock-overlay';
+      ov.innerHTML = `<span class="lock-icon">🔒</span><span class="lock-label">${SHIP_LOCK_LABELS[i]}</span>`;
+      card.appendChild(ov);
+    } else {
+      card.classList.remove('locked');
+    }
+  });
+
+  document.querySelectorAll('.map-card').forEach((card, i) => {
+    card.querySelector('.lock-overlay')?.remove();
+    if (isMapLocked(i)) {
+      card.classList.add('locked');
+      const ov = document.createElement('div');
+      ov.className = 'lock-overlay';
+      ov.innerHTML = `<span class="lock-icon">🔒</span><span class="lock-label">${MAP_LOCK_LABELS[i]}</span>`;
+      card.appendChild(ov);
+    } else {
+      card.classList.remove('locked');
+    }
+  });
 }
 
 // ─── Grid / map constants ─────────────────────────────────────────────────────
@@ -72,15 +212,17 @@ function hexCenter(c, r) {
   };
 }
 
-const START_HEX = hexCenter(26, 16);
+// const START_HEX = hexCenter(26, 16);
 
 // ─── Game constants ───────────────────────────────────────────────────────────
 const SHIP_CONFIGS = {
   motorboat: {
     baseSpeed:     70,
     boostSpeed:    140,
-    countdown:     10,
+    countdown:     3,
     hpMax:         100,
+    turnRate:      72,
+    dcCharges:     4,
     soundRpm:      2600,
     soundBoostRpm: 3600,
     soundFilterHz: 300,
@@ -90,12 +232,48 @@ const SHIP_CONFIGS = {
     boostSpeed:    180,
     countdown:     45,
     hpMax:         60,
+    turnRate:      90,
+    dcCharges:     2,
     soundRpm:      3200,
     soundBoostRpm: 4800,
     soundFilterHz: 700,
   },
+  jetboat: {
+    baseSpeed:     95,
+    boostSpeed:    200,
+    countdown:     60,
+    hpMax:         80,
+    turnRate:      180,
+    dcCharges:     3,
+    soundRpm:      3000,
+    soundBoostRpm: 4400,
+    soundFilterHz: 500,
+  },
+  destroyer: {
+    baseSpeed:     45,
+    boostSpeed:    90,
+    countdown:     50,
+    hpMax:         100,
+    turnRate:      40,
+    dcCharges:     6,
+    soundRpm:      2200,
+    soundBoostRpm: 3000,
+    soundFilterHz: 200,
+  },
 };
 let selectedShip = 'motorboat';   // default selection
+
+// ─── Map definitions ──────────────────────────────────────────────────────────
+const MAPS = [
+  { json: './map1.json', bg: './map1.jpeg', title: 'Strait of Hormuz'  },
+  { json: './map2.json', bg: './map2.jpeg', title: 'South China Sea'   },
+  { json: './map3.json', bg: './map3.jpeg', title: 'Aleutian Islands'  },
+];
+// Persist the player's last-used map across sessions.
+let selectedMapIndex = parseInt(localStorage.getItem('sb_selectedMap') ?? '0', 10);
+if (isNaN(selectedMapIndex) || selectedMapIndex < 0 || selectedMapIndex >= MAPS.length) {
+  selectedMapIndex = 0;
+}
 
 const ANCHOR_COUNT       = 30;
 const ANCHOR_RADIUS      = SIZE * 1.2;
@@ -120,7 +298,6 @@ const HOURGLASS_RADIUS = SIZE * 1.2;   // same pickup radius as mines
 const HOURGLASS_BONUS  = 10;           // seconds added to timer on collection
 
 // ─── Depth charge constants ───────────────────────────────────────────────────
-const DC_MAX_CHARGES    = 3;
 const DC_FUSE_DELAY     = 2.5;   // seconds from drop to detonation
 // 4 hexes in world-px: hex size=22, horizontal spacing DX=33, 4*33 ≈ 132
 const DC_BLAST_RADIUS   = 132;   // world-px sweep radius
@@ -138,7 +315,7 @@ function vibrate(pattern) {
 // ─── Entry point ──────────────────────────────────────────────────────────────
 (async () => {
 
-  const terrain = await loadTerrain('./campaign_default.json');
+  let terrain = await loadTerrain(MAPS[selectedMapIndex].json);
   const { mapWidth, mapHeight } = terrain;
 
   const canvas = document.getElementById('sailCanvas');
@@ -151,16 +328,17 @@ function vibrate(pattern) {
 
   const { state: inputState } = createInput();
 
+  const startHex = terrain.getRandomWaterHexes(1)[0];
   const ship = createShipState({
-    startX:       START_HEX.x,
-    startY:       START_HEX.y,
+    startX: startHex.x,
+    startY: startHex.y,
     startHeading: 0,
   });
 
   const camera   = createCamera();
   const renderer = createRenderer(canvas, mapWidth, mapHeight);
 
-  renderer.loadImages('./CompiledBackground.jpeg', './motorboat.png', './motorboat_2.png', './mine.png', './depth-charge-map.png', './hourglass.png');
+  renderer.loadImages(MAPS[selectedMapIndex].bg, './motorboat.png', './motorboat_2.png', './jetboat.png', './destroyer.png', './mine.png', './depth-charge-map.png', './hourglass.png', selectedShip);
 
   // ── Sound engine ──────────────────────────────────────────────────────────
   const sound = createSoundEngine();
@@ -213,6 +391,8 @@ function vibrate(pattern) {
   // Declare button state vars before bindHeld calls that reference them
   let zoomBtn   = false;
   let shieldBtn = false;
+  let zoomActiveTime = 0;      // how long zoom has been held this use
+  let zoomCooldown = 0;      // countdown before zoom can be used again
 
   bindHeld('btn-zoom',
     () => { zoomBtn = true; },
@@ -238,8 +418,8 @@ function vibrate(pattern) {
   let radarWasActive = false;
 
   // ── Depth charge state ────────────────────────────────────────────────────
-  let dcCharges      = DC_MAX_CHARGES;   // charges remaining
-  let dcWasActive    = false;            // edge detection — was combo held last frame?
+  let dcCharges      = 0;            // set per-ship by startIntro() / resetGame()
+  let dcWasActive    = false;        // edge detection — was combo held last frame?
   // Pending detonation: null or { x, y, timer }
   let dcPending      = null;
 
@@ -252,11 +432,23 @@ function vibrate(pattern) {
   const tallyEl    = document.getElementById('anchor-tally');
   const hpFillEl   = document.getElementById('hp-fill');
   const hpTextEl   = document.getElementById('hp-text');
-  const dcIconEls  = [
-    document.getElementById('dc-icon-0'),
-    document.getElementById('dc-icon-1'),
-    document.getElementById('dc-icon-2'),
-  ];
+  const dcChargesEl = document.getElementById('dc-charges');
+
+  // Builds the correct number of icon <img> elements for the selected ship.
+  // Called once at startup and again whenever the ship selection changes.
+  function buildDcIcons(count) {
+    if (!dcChargesEl) return;
+    dcChargesEl.innerHTML = '';
+    for (let i = 0; i < count; i++) {
+      const img = document.createElement('img');
+      img.id        = `dc-icon-${i}`;
+      img.className = 'dc-icon';
+      img.src       = './depth-charge.png';
+      img.alt       = 'Depth charge';
+      img.title     = 'Depth charge';
+      dcChargesEl.appendChild(img);
+    }
+  }
 
   function updateHpHud(currentHp) {
     const pct = (currentHp / hpMax) * 100;
@@ -269,12 +461,12 @@ function vibrate(pattern) {
   }
 
   function updateTallyHud() {
-    if (tallyEl) tallyEl.textContent = `💣 ${anchorsFound} / ${ANCHOR_COUNT}`;
+    if (tallyEl) tallyEl.innerHTML = `<img src="./mine.png" style="width:60px;height:60px;vertical-align:middle;"> ${anchorsFound} / ${ANCHOR_COUNT}`;
   }
 
   function updateDcHud() {
-    dcIconEls.forEach((el, i) => {
-      if (!el) return;
+    if (!dcChargesEl) return;
+    dcChargesEl.querySelectorAll('.dc-icon').forEach((el, i) => {
       // Charges are "used" from right to left: index 0 = leftmost = last to go
       el.classList.toggle('dc-used', i >= dcCharges);
     });
@@ -437,6 +629,9 @@ function vibrate(pattern) {
     _stopGame();
     sound.stopEngine();
 
+    // Tally this run's mines into the cumulative total before checking unlocks.
+    playerRecord.total_mines += anchorsFound;
+
     const minesLeft = ANCHOR_COUNT - anchorsFound;
     const row = resultForMinesLeft(minesLeft);
 
@@ -460,6 +655,11 @@ function vibrate(pattern) {
       ? 0
       : currentBoard[currentBoard.length - 1].score;
     const isHighScore = anchorsFound > lowestTop10;
+
+    // Check for newly earned unlocks, refresh UI, and persist.
+    const newUnlocks = checkAndGrantUnlocks(anchorsFound, isHighScore);
+    if (newUnlocks) applyUnlockUI();
+    savePlayerRecord();   // fire-and-forget — doesn't block the end screen
 
     if (isHighScore) {
       // Show initials screen first
@@ -493,7 +693,11 @@ function vibrate(pattern) {
 
   // Full in-place reset — wipes every piece of game state so the player can
   // go back to the start screen and play again without a page reload.
-  function resetGame() {
+  async function resetGame() {
+    // Reload terrain + background in case the player switched maps.
+    terrain = await loadTerrain(MAPS[selectedMapIndex].json);
+    renderer.loadImages(MAPS[selectedMapIndex].bg, './motorboat.png', './motorboat_2.png', './jetboat.png', './destroyer.png', './mine.png', './depth-charge-map.png', './hourglass.png', selectedShip);
+
     // Hide the end screen, re-show the start screen
     const endEl   = document.getElementById('end-screen');
     const startEl = document.getElementById('start-screen');
@@ -517,7 +721,8 @@ function vibrate(pattern) {
     radarWasActive = false;
     introActive    = false;
     introAge       = 0;
-    dcCharges      = DC_MAX_CHARGES;
+    dcCharges      = SHIP_CONFIGS[selectedShip].dcCharges;
+    buildDcIcons(SHIP_CONFIGS[selectedShip].dcCharges);
     dcWasActive    = false;
     dcPending      = null;
 
@@ -534,7 +739,8 @@ function vibrate(pattern) {
     updateDcHud();
 
     // Reset ship back to the starting hex, heading due "north"
-    ship.setPosition(START_HEX.x, START_HEX.y);
+    const startHex = terrain.getRandomWaterHexes(1)[0];
+    ship.setPosition(startHex.x, startHex.y);
     ship.setHeading(0);
 
     // Clear the fog layer and the renderer's transient visual state
@@ -547,13 +753,29 @@ function vibrate(pattern) {
   }
 
   // ── Start screen / intro ──────────────────────────────────────────────────
-  function startIntro() {
+  async function startIntro() {
+    // Reload terrain + background for whichever map the player chose.
+    // This runs on every play so a map change on the start screen always takes effect.
+    terrain = await loadTerrain(MAPS[selectedMapIndex].json);
+    renderer.loadImages(MAPS[selectedMapIndex].bg, './motorboat.png', './motorboat_2.png', './jetboat.png', './destroyer.png', './mine.png', './depth-charge-map.png', './hourglass.png', selectedShip);
+    markers = terrain.getRandomWaterHexes(ANCHOR_COUNT)
+      .map(({ x, y }) => ({ x, y, reached: false }));
+    renderer.setMarkers(markers);
+    hourglasses = terrain.getPerimeterWaterHexes(HOURGLASS_COUNT)
+      .map(({ x, y }) => ({ x, y, collected: false }));
+    renderer.setHourglasses(hourglasses);
+
     const cfg = SHIP_CONFIGS[selectedShip];
     ship.setSpeeds(cfg.baseSpeed, cfg.boostSpeed);
+    ship.setTurnRate(cfg.turnRate);
     hpMax = cfg.hpMax;
+    hp = hpMax;
+    updateHpHud(hp);
     timeRemaining = cfg.countdown;
     updateTimerHud(timeRemaining);
-    renderer.setShipImage(selectedShip);
+    dcCharges = cfg.dcCharges;
+    buildDcIcons(cfg.dcCharges);
+    updateDcHud();
     sound.init();          // must be called from user gesture — also calls ctx.resume() for iOS
     sound.loadSamples('.'); // fetch + decode WAV files now that AudioContext is running
     sound.startEngine({ normalRpm: cfg.soundRpm, boostRpm: cfg.soundBoostRpm, filterHz: cfg.soundFilterHz });
@@ -600,16 +822,134 @@ function vibrate(pattern) {
     }, 300);
   });
 
-  // ── Ship selector wiring ──────────────────────────────────────────────────
-  document.getElementById('ship-motorboat').addEventListener('click', () => {
-    selectedShip = 'motorboat';
-    document.getElementById('ship-motorboat').classList.add('selected');
-    document.getElementById('ship-motorboat2').classList.remove('selected');
+  // ── Ship selector wiring ─────────────────────────────────────────────────
+  const SHIP_KEYS = ['motorboat', 'motorboat_2', 'destroyer', 'jetboat'];
+
+  function selectShip(index) {
+    if (isShipLocked(index)) return;   // locked ships cannot be selected
+    selectedShip = SHIP_KEYS[index];
+    document.querySelectorAll('.ship-card').forEach((el, i) => {
+      el.classList.toggle('selected', i === index);
+    });
+    document.querySelectorAll('.ship-dot').forEach((el, i) => {
+      el.classList.toggle('active', i === index);
+    });
+  }
+
+  const _shipCarousel = document.getElementById('ship-carousel');
+
+  function scrollToShip(index, smooth = true) {
+    if (!_shipCarousel) return;
+    const card = document.getElementById(`ship-card-${index}`);
+    if (!card) return;
+    const carouselRect = _shipCarousel.getBoundingClientRect();
+    const cardRect     = card.getBoundingClientRect();
+    const cardCenter   = _shipCarousel.scrollLeft + cardRect.left - carouselRect.left + cardRect.width / 2;
+    const target       = cardCenter - _shipCarousel.clientWidth / 2;
+    _shipCarousel.scrollTo({ left: target, behavior: smooth ? 'smooth' : 'instant' });
+  }
+
+  if (_shipCarousel) {
+    // Scroll to card 0 on load
+    requestAnimationFrame(() => scrollToShip(0, false));
+
+    // Update selection as user swipes
+    _shipCarousel.addEventListener('scroll', () => {
+      const carouselRect = _shipCarousel.getBoundingClientRect();
+      const carouselCenter = carouselRect.left + carouselRect.width / 2;
+      const cards = _shipCarousel.querySelectorAll('.ship-card');
+      let closest = 0, minDist = Infinity;
+      cards.forEach((card, i) => {
+        const cardRect = card.getBoundingClientRect();
+        const cardCenter = cardRect.left + cardRect.width / 2;
+        const dist = Math.abs(cardCenter - carouselCenter);
+        if (dist < minDist) { minDist = dist; closest = i; }
+      });
+      selectShip(closest);
+    }, { passive: true });
+
+    // Tap a card to select and center it
+    document.querySelectorAll('.ship-card').forEach((card, i) => {
+      card.addEventListener('click', () => scrollToShip(i));
+    });
+  }
+
+  // Dot clicks
+  document.querySelectorAll('.ship-dot').forEach((dot, i) => {
+    dot.addEventListener('click', () => scrollToShip(i));
   });
-  document.getElementById('ship-motorboat2').addEventListener('click', () => {
-    selectedShip = 'motorboat_2';
-    document.getElementById('ship-motorboat2').classList.add('selected');
-    document.getElementById('ship-motorboat').classList.remove('selected');
+
+  // Initialize selection
+  selectShip(0);
+
+  // ── Map selector wiring ───────────────────────────────────────────────────
+  function selectMap(index) {
+    if (isMapLocked(index)) return;    // locked maps cannot be selected
+    selectedMapIndex = index;
+    localStorage.setItem('sb_selectedMap', index);
+    document.querySelectorAll('.map-card').forEach((el, i) => {
+      el.classList.toggle('selected', i === index);
+    });
+    document.querySelectorAll('.map-dot').forEach((el, i) => {
+      el.classList.toggle('active', i === index);
+    });
+  }
+
+  // Apply the persisted selection to the UI on load.
+  selectMap(selectedMapIndex);
+
+  // ── Map carousel scroll helpers ───────────────────────────────────────────
+  // scrollIntoView(inline:'start') ignores our centering padding, so we
+  // calculate scrollLeft manually: card's offsetLeft + half card width
+  // minus half carousel client width puts the card center at carousel center.
+  const _carousel = document.getElementById('map-carousel');
+
+  function scrollToCard(index, smooth = true) {
+    if (!_carousel) return;
+    const card = document.getElementById(`map-card-${index}`);
+    if (!card) return;
+    // getBoundingClientRect gives position relative to viewport, so subtract
+    // the carousel's own left edge and add current scrollLeft to get the
+    // scroll-content position — unaffected by padding or offset parent quirks.
+    const carouselRect = _carousel.getBoundingClientRect();
+    const cardRect     = card.getBoundingClientRect();
+    const cardCenter   = _carousel.scrollLeft + cardRect.left - carouselRect.left + cardRect.width / 2;
+    const target       = cardCenter - _carousel.clientWidth / 2;
+    _carousel.scrollTo({ left: target, behavior: smooth ? 'smooth' : 'instant' });
+  }
+
+  if (_carousel) {
+    // Scroll to persisted card on load — defer so layout is fully complete.
+    requestAnimationFrame(() => scrollToCard(selectedMapIndex, false));
+
+    // Update selected map as user swipes — compare card centers to carousel center.
+    _carousel.addEventListener('scroll', () => {
+      const carouselCenter = _carousel.scrollLeft + _carousel.clientWidth / 2;
+      const cards = _carousel.querySelectorAll('.map-card');
+      let closest = 0, minDist = Infinity;
+      cards.forEach((card, i) => {
+        const cardCenter = card.offsetLeft + card.offsetWidth / 2;
+        const dist = Math.abs(cardCenter - carouselCenter);
+        if (dist < minDist) { minDist = dist; closest = i; }
+      });
+      if (closest !== selectedMapIndex) selectMap(closest);
+    }, { passive: true });
+  }
+
+  // Card clicks — select and scroll to the clicked map.
+  document.querySelectorAll('.map-card').forEach((card, i) => {
+    card.addEventListener('click', () => {
+      selectMap(i);
+      scrollToCard(i);
+    });
+  });
+
+  // Dot clicks — scroll to the corresponding card, centered.
+  document.querySelectorAll('.map-dot').forEach((dot, i) => {
+    dot.addEventListener('click', () => {
+      selectMap(i);
+      scrollToCard(i);
+    });
   });
 
   // ── Debug overlay ─────────────────────────────────────────────────────────
@@ -646,7 +986,30 @@ function vibrate(pattern) {
       isShielded = shieldBtn || inputState.shield;
       renderer.setShielded(isShielded);
       sound.setBoost(inputState.boost);
-      renderer.setZoomOut((inputState.zoomOut || zoomBtn) && !isShielded);
+      // ── Zoom out — max 1.5s use, 2s cooldown ──────────────────────────
+      const ZOOM_MAX = 1.5;   // seconds zoom can be held
+      const ZOOM_COOLDOWN = 2.0;   // seconds before zoom is available again
+
+      const zoomPressed = (inputState.zoomOut || zoomBtn) && !isShielded;
+
+      if (zoomCooldown > 0) {
+        // On cooldown — can't use zoom regardless of input
+        zoomCooldown = Math.max(0, zoomCooldown - dt);
+        renderer.setZoomOut(false);
+      } else if (zoomPressed && zoomActiveTime < ZOOM_MAX) {
+        // Zoom is active and within time limit
+        zoomActiveTime += dt;
+        renderer.setZoomOut(true);
+      } else if (zoomPressed && zoomActiveTime >= ZOOM_MAX) {
+        // Time limit hit — cut zoom and start cooldown
+        zoomActiveTime = 0;
+        zoomCooldown = ZOOM_COOLDOWN;
+        renderer.setZoomOut(false);
+      } else {
+        // Not pressed — reset the usage timer (no cooldown for releasing early)
+        zoomActiveTime = 0;
+        renderer.setZoomOut(false);
+      }
 
       // Radar — fires when shield AND zoom both held, off cooldown
       if (radarCooldown > 0) radarCooldown = Math.max(0, radarCooldown - dt);
@@ -701,7 +1064,7 @@ function vibrate(pattern) {
           `shielded: ${isShielded}  hp: ${hp}\n` +
           `mines: ${anchorsFound}/${ANCHOR_COUNT}  time: ${timeRemaining.toFixed(1)}s\n` +
           `radar cooldown: ${radarCooldown.toFixed(1)}s  zoom: ${renderer.zoom.toFixed(2)}\n` +
-          `depth charges: ${dcCharges}/${DC_MAX_CHARGES}  fuse: ${dcFuse}`;
+          `depth charges: ${dcCharges}/${SHIP_CONFIGS[selectedShip].dcCharges}  fuse: ${dcFuse}`;
       }
     },
 
@@ -710,9 +1073,21 @@ function vibrate(pattern) {
     },
   });
 
-  loop.start();
+  // ── Load player progression ───────────────────────────────────────────────
+  // Await so unlock state is known before the player touches the carousels.
+  await loadPlayerRecord();
+  progressionLoaded = true;
+  // If the persisted map selection is now locked (new device, cleared data, etc.)
+  // quietly fall back to map 1 so the game always starts in a valid state.
+  if (isMapLocked(selectedMapIndex)) {
+    selectedMapIndex = 0;
+    localStorage.setItem('sb_selectedMap', '0');
+    selectMap(0);
+    requestAnimationFrame(() => scrollToCard(0, false));
+  }
+  applyUnlockUI();
 
-  window._sb = { loop, ship, camera, terrain, fog, inputState, renderer };
+  loop.start();
   console.log('[SailBuddy] running — P for debug overlay');
 
 })();

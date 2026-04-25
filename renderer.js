@@ -16,7 +16,12 @@
 const ZOOM_NORMAL  = 2.5;
 const ZOOM_OUT     = 0.6;
 const ZOOM_SPEED   = 0.3;
-const SHIP_SIZE    = 48;
+const SHIP_CONFIG = {
+  motorboat:   { drawSize: 48 },
+  motorboat_2: { drawSize: 48 },
+  jetboat:     { drawSize: 48 },
+  destroyer:   { drawSize: 96 },
+};
 const MARKER_SIZE  = 28;
 const MARKER_ICON  = '⚓';
 
@@ -70,7 +75,10 @@ export function createRenderer(canvas, mapW, mapH) {
   let bgImage      = null;
   let shipImageA   = null;   // motorboat
   let shipImageB   = null;   // motorboat_2
-  let shipImage    = null;   // currently active ship
+  let shipImageC   = null;   // jetboat
+  let shipImageD   = null;   // destroyer
+  let shipImage       = null;   // currently active ship
+  let currentShipKey  = 'motorboat';
   let markers      = [];
   let fogLayer     = null;
   let shielded     = false;
@@ -101,22 +109,30 @@ export function createRenderer(canvas, mapW, mapH) {
   let radarPingAge   = null;
   const radarFlashes = [];
 
-  async function loadImages(bgUrl, shipUrlA, shipUrlB, mineUrl, dcMapUrl, hourglassUrl) {
-    [bgImage, shipImageA, shipImageB, mineImage, dcMapImage, hourglassImage] = await Promise.all([
+  async function loadImages(bgUrl, shipUrlA, shipUrlB, shipUrlC, shipUrlD, mineUrl, dcMapUrl, hourglassUrl, shipKey) {
+    [bgImage, shipImageA, shipImageB, shipImageC, shipImageD, mineImage, dcMapImage, hourglassImage] = await Promise.all([
       _loadImage(bgUrl),
       _loadImage(shipUrlA),
       _loadImage(shipUrlB),
+      _loadImage(shipUrlC),
+      _loadImage(shipUrlD),
       _loadImage(mineUrl),
       _loadImage(dcMapUrl),
       _loadImage(hourglassUrl),
     ]);
-    shipImage = shipImageA;   // default to motorboat
+    // Apply the correct ship image now that all images are loaded.
+    // If no key was supplied, default to motorboat.
+    setShipImage(shipKey || 'motorboat');
   }
 
   function setHourglasses(newHourglasses) { hourglasses = newHourglasses; }
 
   function setShipImage(key) {
-    shipImage = key === 'motorboat_2' ? shipImageB : shipImageA;
+    shipImage = key === 'motorboat_2' ? shipImageB
+              : key === 'jetboat'     ? shipImageC
+              : key === 'destroyer'   ? shipImageD
+              : shipImageA;
+    currentShipKey = key || 'motorboat';
   }
 
   function setMarkers(newMarkers) { markers = newMarkers; }
@@ -498,8 +514,9 @@ export function createRenderer(canvas, mapW, mapH) {
     ctx.translate(wx, wy);
     ctx.rotate(((headingDeg + 180) * Math.PI) / 180);
     if (shipImage) {
-      const half = SHIP_SIZE / 2;
-      ctx.drawImage(shipImage, -half, -half, SHIP_SIZE, SHIP_SIZE);
+      const drawSize = (SHIP_CONFIG[currentShipKey] || SHIP_CONFIG.motorboat).drawSize;
+      const half = drawSize / 2;
+      ctx.drawImage(shipImage, -half, -half, drawSize, drawSize);
     } else {
       ctx.fillStyle   = '#f0e6d0';
       ctx.strokeStyle = '#4a3a20';

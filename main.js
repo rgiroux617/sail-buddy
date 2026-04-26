@@ -24,7 +24,7 @@ async function fetchLeaderboard() {
     .from('leaderboard')
     .select('name, score, device')
     .order('score', { ascending: false })
-    .limit(10);
+    .limit(20);
   if (error || !data) {
     tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;opacity:0.5;">Unavailable</td></tr>';
     return [];
@@ -130,8 +130,8 @@ function savePlayerRecord() {
 // Returns true if any unlock was newly granted.
 function checkAndGrantUnlocks(runMines, madLeaderboard) {
   let changed = false;
-  // Map 3: clear ≥ 20 mines in a single run on map 1 or 2
-  if (!playerRecord.unlocks.map_3 && runMines >= 20 && selectedMapIndex < 2) {
+  // Map 3: clear ≥ 15 mines in a single run on map 1 or 2
+  if (!playerRecord.unlocks.map_3 && runMines >= 15 && selectedMapIndex < 2) {
     playerRecord.unlocks.map_3 = true;
     changed = true;
   }
@@ -140,8 +140,8 @@ function checkAndGrantUnlocks(runMines, madLeaderboard) {
     playerRecord.unlocks.destroyer = true;
     changed = true;
   }
-  // Jetboat: accumulate 100 total mines across all runs
-  if (!playerRecord.unlocks.jetboat && playerRecord.total_mines >= 100) {
+  // Jetboat: accumulate 50 total mines across all runs
+  if (!playerRecord.unlocks.jetboat && playerRecord.total_mines >= 50) {
     playerRecord.unlocks.jetboat = true;
     changed = true;
   }
@@ -162,8 +162,8 @@ function isMapLocked(index) {
 }
 
 // Lock label copy — matches SHIP_KEYS and MAPS order respectively.
-const SHIP_LOCK_LABELS = [null, null, 'Make the leaderboard', 'Clear 100 total mines'];
-const MAP_LOCK_LABELS  = [null, null, 'Clear 20 mines\nin one run'];
+const SHIP_LOCK_LABELS = [null, null, 'Make the leaderboard', 'Clear 50 total mines'];
+const MAP_LOCK_LABELS  = [null, null, 'Clear 15 mines\nin one run'];
 
 // Injects or removes lock overlays on every ship and map card.
 // Safe to call multiple times — always rebuilds from current playerRecord.
@@ -219,7 +219,7 @@ const SHIP_CONFIGS = {
   motorboat: {
     baseSpeed:     70,
     boostSpeed:    140,
-    countdown:     60,
+    countdown:     3,
     hpMax:         100,
     turnRate:      72,
     dcCharges:     4,
@@ -628,6 +628,7 @@ function vibrate(pattern) {
   async function triggerEnd(reason) {
     _stopGame();
     sound.stopEngine();
+    sound.stopMusic();
 
     // Tally this run's mines into the cumulative total before checking unlocks.
     playerRecord.total_mines += anchorsFound;
@@ -683,10 +684,10 @@ function vibrate(pattern) {
 
     // Fetch current leaderboard to check if score qualifies
     const currentBoard = await fetchLeaderboard();
-    const lowestTop10 = currentBoard.length < 10
+    const lowestTop20 = currentBoard.length < 20
       ? 0
       : currentBoard[currentBoard.length - 1].score;
-    const isHighScore = anchorsFound > lowestTop10;
+    const isHighScore = anchorsFound > lowestTop20;
 
     // Check for newly earned unlocks, refresh UI, and persist.
     const newUnlocks = checkAndGrantUnlocks(anchorsFound, isHighScore);
@@ -809,8 +810,9 @@ function vibrate(pattern) {
     buildDcIcons(cfg.dcCharges);
     updateDcHud();
     sound.init();          // must be called from user gesture — also calls ctx.resume() for iOS
-    sound.loadSamples('.'); // fetch + decode WAV files now that AudioContext is running
+    await sound.loadSamples('.'); // fetch + decode audio files before starting playback
     sound.startEngine({ normalRpm: cfg.soundRpm, boostRpm: cfg.soundBoostRpm, filterHz: cfg.soundFilterHz });
+    sound.startMusic();
     const startEl = document.getElementById('start-screen');
     startEl.classList.add('fade-out');
     setTimeout(() => { startEl.style.display = 'none'; }, 800);

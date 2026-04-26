@@ -30,6 +30,7 @@ const VOL_FUSE_TICK       = 0.8;   // synthesized ticking during fuse countdown
 const VOL_FUSE_HUM        = 0.18;  // synthesized sub-bass hum during fuse
 const VOL_HOURGLASS       = 0.28;  // synthesized two-tone chime
 const VOL_PING            = 0.35;  // radar ping
+const VOL_MUSIC           = 0.48;  // background music — quieter than SFX
 
 // ── Radar ping constants ───────────────────────────────────────────────────────
 const PING_START_HZ  = 880;
@@ -64,6 +65,10 @@ export function createSoundEngine() {
     // If the engine is running, adjust masterGain live
     if (masterGain && ctx) {
       masterGain.gain.setTargetAtTime(val ? 0 : 8.0, ctx.currentTime, 0.15);
+    }
+    // Also adjust music volume live
+    if (musicGain && ctx) {
+      musicGain.gain.setTargetAtTime(val ? 0 : VOL_MUSIC, ctx.currentTime, 0.15);
     }
   }
 
@@ -112,9 +117,10 @@ export function createSoundEngine() {
         return null;
       }
     }
-    [sampleCollision, sampleDepthCharge] = await Promise.all([
+    [sampleCollision, sampleDepthCharge, musicBuffer] = await Promise.all([
       _load(`${baseUrl}/land_collision.wav`),
       _load(`${baseUrl}/depth_charge.wav`),
+      _load(`${baseUrl}/bkdMusic.ogg`).then(buf => buf || _load(`${baseUrl}/bkdMusic.mp3`)),
     ]);
     console.log('[sound] samples loaded');
   }
@@ -277,6 +283,36 @@ export function createSoundEngine() {
   // }
   // ── End alternate engine ──────────────────────────────────────────────────
 
+  // ── Background music ──────────────────────────────────────────────────────
+  // Fades in over 2 seconds when the game starts, loops until stopMusic().
+  // OGG is loaded first; MP3 is the fallback (needed for iOS).
+  function startMusic() {
+    if (!ctx || !musicBuffer || musicSource) return;
+    musicGain = ctx.createGain();
+    musicGain.gain.setValueAtTime(0, ctx.currentTime);
+    if (!muted) {
+      musicGain.gain.linearRampToValueAtTime(VOL_MUSIC, ctx.currentTime + 2.0);
+    }
+    musicGain.connect(ctx.destination);
+
+    musicSource = ctx.createBufferSource();
+    musicSource.buffer = musicBuffer;
+    musicSource.loop   = true;
+    musicSource.connect(musicGain);
+    musicSource.start(ctx.currentTime);
+  }
+
+  // Fades out over fadeSecs and then stops the source node.
+  function stopMusic(fadeSecs = 2.5) {
+    if (!ctx || !musicSource) return;
+    const src  = musicSource;
+    const gain = musicGain;
+    musicSource = null;
+    musicGain   = null;
+    gain.gain.setTargetAtTime(0, ctx.currentTime, fadeSecs / 4);
+    setTimeout(() => { try { src.stop(); } catch (_) {} }, fadeSecs * 1000 + 500);
+  }
+
   // ── Land collision — land_collision.wav ──────────────────────────────────
   function playCollision() {
     if (!ctx || muted) return;
@@ -341,6 +377,11 @@ export function createSoundEngine() {
   //      giving a submarine "pressure building" feel.
   // Both are routed through a shared fuseGain so stopDepthChargeFuse() can
   // fade everything out instantly.
+
+  // ── Music state ───────────────────────────────────────────────────────────
+  let musicSource = null;   // the looping BufferSource for background music
+  let musicGain   = null;   // gain node so we can fade it out
+  let musicBuffer = null;   // decoded AudioBuffer — loaded once, reused
 
   let fuseGain       = null;   // shared gain node for clean stop
   let fuseHum        = null;   // persistent oscillator for the hum
@@ -462,5 +503,7 @@ export function createSoundEngine() {
     playDepthChargeFuse,
     stopDepthChargeFuse,
     playRadarPing,
+    startMusic,
+    stopMusic,
   };
 }

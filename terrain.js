@@ -187,6 +187,37 @@ export async function loadTerrain(campaignUrl) {
       return pool.concat(interior).slice(0, count);
     },
 
+    // Returns a single safe water hex for ship spawning.
+    // A hex is considered safe only if all 6 of its neighbors are also water
+    // (not in landSet and not missing from hexData). This prevents spawning
+    // on boundary hexes or hexes adjacent to land where the ship can't move.
+    // Falls back to any interior water hex if no fully-open hex exists.
+    getStartHex() {
+      // Flat-top hex neighbor offsets (col-parity aware).
+      // Even columns and odd columns have different neighbor offsets.
+      function neighbors(c, r) {
+        const even = (c & 1) === 0;
+        return [
+          { c: c - 1, r: even ? r - 1 : r },
+          { c: c - 1, r: even ? r     : r + 1 },
+          { c: c + 1, r: even ? r - 1 : r },
+          { c: c + 1, r: even ? r     : r + 1 },
+          { c,        r: r - 1 },
+          { c,        r: r + 1 },
+        ];
+      }
+
+      // Filter to hexes that are interior (not perimeter) and have all
+      // 6 neighbors classified as water.
+      const safe = waterHexes.filter(hex => {
+        if (hex.c === 0 || hex.c === COLS - 1 || hex.r === 0 || hex.r === ROWS - 1) return false;
+        return neighbors(hex.c, hex.r).every(n => !landSet.has(`${n.c},${n.r}`));
+      });
+
+      const pool = safe.length > 0 ? safe : waterHexes;
+      return pool[Math.floor(Math.random() * pool.length)];
+    },
+
     mapWidth,
     mapHeight,
   };

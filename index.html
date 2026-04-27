@@ -100,6 +100,18 @@
       padding: 0 4px;
     }
 
+    /* Map-reactive crossfade targets */
+    #map-subtitle {
+      transition: opacity 0.25s ease;
+    }
+    #map-title-word {
+      display: inline-block;
+      transition: opacity 0.25s ease;
+    }
+    #start-desc {
+      transition: opacity 0.25s ease;
+    }
+
     /* Divider */
     .start-divider {
       border: none;
@@ -445,7 +457,7 @@
       width: 48px;
       height: 48px;
       object-fit: contain;
-      filter: drop-shadow(0 1px 4px rgba(255,140,20,0.7));
+      filter: drop-shadow(0 1px 4px rgba(255,140,20,0.85));
       transition: opacity 0.2s ease, filter 0.2s ease;
     }
     .dc-icon.dc-used {
@@ -736,8 +748,10 @@
 
     .leaderboard-table tbody {
       display: block;
+      min-height: 220px;
       max-height: 220px;
       overflow-y: auto;
+      transition: opacity 0.15s ease;
     }
 
     .leaderboard-table th {
@@ -762,6 +776,25 @@
       background: rgba(251, 251, 251, 0.42);
       font-weight: 700;
       color: #b84a1a;
+    }
+
+    /* ── Leaderboard map tabs ── */
+    .lb-tabs {
+      display: flex;
+      gap: 6px;
+      margin: 8px 0 12px;
+    }
+    .lb-tab-btn {
+      flex: 1;
+      font-family: 'Righteous', sans-serif;
+      font-size: 13px;
+      letter-spacing: 0.05em;
+      padding: 6px 0;
+      border-radius: 8px;
+      border: 2px solid;          /* color set by JS */
+      background: transparent;    /* active state set by JS */
+      cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease;
     }
 
         /* Keyboard keycap style */
@@ -988,17 +1021,17 @@
     <div class="start-card">
 
     <div class="start-title">
-      <span class="start-subtitle">🪰 Bugman Industries Presents</span>
-      Minesweeper:<br><span style="color: #d3b90f;">Hormuz</span> Edition
+      <span class="start-subtitle" id="map-subtitle">🪰 Bugman Industries Presents</span>
+      Minesweeper:<br><span id="map-title-word" style="color: #d3b90f;">Hormuz</span> Edition
     </div>
 
-      <p class="start-desc">
+      <p id="start-desc" class="start-desc">
         In 60 seconds, oil tankers will reach The Strait —
         and everyone forgot to clear the mines!
         <b>DJT</b> is on the line and I've got to give him the update -
         will YOU save the day, chump?
       </p>
-      <button id="how-to-btn" title="How to play">But I'm no Merchant Mariner!</button>
+      <button id="how-to-btn" title="How to play">But I'm no Seaman!</button>
 
       <hr class="start-divider">
 
@@ -1059,7 +1092,7 @@
         </div>
         <div class="ship-card" id="ship-card-2" data-ship="destroyer">
           <span class="ship-label-title">USS Stockdale</span>
-          <span class="ship-label">"Overkill. Absolutely."</span>
+          <span class="ship-label">"Drop them charges"</span>
           <div class="ship-img-stripe">
             <canvas class="ship-wake-canvas"></canvas>
             <img src="./destroyer.png" alt="Destroyer">
@@ -1069,8 +1102,8 @@
           <span class="ship-label" style="font-style:normal;text-align:left;">Time:&nbsp;&nbsp; ★★★☆☆</span>
         </div>
         <div class="ship-card" id="ship-card-3" data-ship="jetboat">
-          <span class="ship-label-title">Yamaha Strikecraft</span>
-          <span class="ship-label">"Low and fast"</span>
+          <span class="ship-label-title">Bugmans Jetboat</span>
+          <span class="ship-label">"The Beast"</span>
           <div class="ship-img-stripe">
             <canvas class="ship-wake-canvas"></canvas>
             <img src="./jetboat.png" alt="Jet Boat">
@@ -1158,7 +1191,7 @@
         <div class="start-title" style="font-size:24px;">How to Play</div>
         <p class="start-desc" style="text-align:left;">
           Clear as many of the 30 mines as you can in 60s (45s for the Dualthrust).<br><br></p>
-        <div class="ship-picker-title">Tips for Play</div>
+        <div class="ship-picker-title">Tips</div>
         <p class="start-desc" style="text-align:left;">
           Colliding with land or running over mines will damage the hull unless your shield is activated<br><br>
           The shield is also the brake (and let's you make tighter turns)<br><br>
@@ -1167,7 +1200,8 @@
           Collect hourglasses for extra time<br><br>
           There's no way to stop the boat - ain't nobody got time for that!<br><br>
           <strong>Easy mode:</strong> a full sized screen and keyboard make the game much simpler.  
-          It plays in any browser window - just paste the URL.
+          It plays in any browser window - just paste the URL.<br><br>
+          Leaderboard scores are stored remotely and viewable to all users.  Make your name!
         </p>
         <button id="how-to-close" class="overlay-btn" style="background:#3c8c8c;">← Back</button>
       </div>
@@ -1301,6 +1335,11 @@
       <hr class="start-divider">
       <div class="leaderboard-card">
         <div class="leaderboard-title">🏆 Top Sweepers 🏆</div>
+        <div class="lb-tabs">
+          <button class="lb-tab-btn">Alaska</button>
+          <button class="lb-tab-btn">Vietnam</button>
+          <button class="lb-tab-btn">Hormuz</button>
+        </div>
         <table class="leaderboard-table">
           <thead>
             <tr>

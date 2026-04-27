@@ -17,16 +17,17 @@ const SUPABASE_URL = 'https://iyhvjnymuntqszejdnkx.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_LW_47VRbX2cV-znzs6CDVQ_MxjHuf3O';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-async function fetchLeaderboard() {
+async function fetchLeaderboard(mapIndex = 0) {
   const tbody = document.getElementById('leaderboard-body');
-  tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;opacity:0.5;">Loading...</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;opacity:0.5;">Loading...</td></tr>';
   const { data, error } = await sb
     .from('leaderboard')
     .select('name, score, device')
+    .eq('map', mapIndex)
     .order('score', { ascending: false })
     .limit(20);
   if (error || !data) {
-    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;opacity:0.5;">Unavailable</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;opacity:0.5;">Unavailable</td></tr>';
     return [];
   }
   return data;
@@ -52,6 +53,36 @@ function renderLeaderboard(data, highlightScore) {
   }).join('');
 }
 
+// ─── Leaderboard tab colors — must match MAP_CONTENT ─────────────────────────
+const LB_TAB_COLORS = ['#5ba8c4', '#6aab4f', '#d3b90f'];
+
+// Highlights the correct tab button and dims the others.
+function setActiveLeaderboardTab(mapIndex) {
+  document.querySelectorAll('.lb-tab-btn').forEach((btn, i) => {
+    const color = LB_TAB_COLORS[i];
+    if (i === mapIndex) {
+      btn.style.background = color;
+      btn.style.color      = '#fff';
+      btn.style.borderColor = color;
+    } else {
+      btn.style.background  = 'transparent';
+      btn.style.color       = color;
+      btn.style.borderColor = color;
+    }
+  });
+}
+
+// Fetches and renders the leaderboard for the chosen tab. No score highlight
+// when browsing — highlight only applies on initial post-run display.
+async function switchLeaderboardTab(mapIndex) {
+  setActiveLeaderboardTab(mapIndex);
+  const tbody = document.getElementById('leaderboard-body');
+  tbody.style.opacity = '0.25';
+  const data = await fetchLeaderboard(mapIndex);
+  renderLeaderboard(data, null);
+  tbody.style.opacity = '1';
+}
+
 async function submitScore(name, minesCleared) {
   const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)
     || window.innerWidth < 768;
@@ -59,7 +90,7 @@ async function submitScore(name, minesCleared) {
 
   const { error } = await sb
     .from('leaderboard')
-    .insert({ name, score: minesCleared, device });
+    .insert({ name, score: minesCleared, device, map: selectedMapIndex });
   if (error) console.log('submitScore error:', error);
 }
 
@@ -217,48 +248,44 @@ function hexCenter(c, r) {
 // ─── Game constants ───────────────────────────────────────────────────────────
 const SHIP_CONFIGS = {
   motorboat: {
-    baseSpeed:     70,
-    boostSpeed:    140,
-    countdown:     3,
-    hpMax:         100,
-    turnRate:      72,
-    dcCharges:     4,
-    soundRpm:      2600,
-    soundBoostRpm: 3600,
-    soundFilterHz: 300,
+    baseSpeed:      70,
+    boostSpeed:     140,
+    countdown:      60,
+    hpMax:          100,
+    turnRate:       72,
+    dcCharges:      4,
+    soundSample:    'motorboat',  // matches motorboat.wav
+    soundBoostRate: 1.35,         // playbackRate multiplier for boost
   },
   motorboat_2: {
-    baseSpeed:     110,
-    boostSpeed:    180,
-    countdown:     45,
-    hpMax:         60,
-    turnRate:      90,
-    dcCharges:     2,
-    soundRpm:      3200,
-    soundBoostRpm: 4800,
-    soundFilterHz: 700,
+    baseSpeed:      110,
+    boostSpeed:     180,
+    countdown:      45,
+    hpMax:          60,
+    turnRate:       90,
+    dcCharges:      2,
+    soundSample:    'motorboat_2',
+    soundBoostRate: 1.4,
   },
   jetboat: {
-    baseSpeed:     95,
-    boostSpeed:    200,
-    countdown:     50,
-    hpMax:         80,
-    turnRate:      180,
-    dcCharges:     3,
-    soundRpm:      3000,
-    soundBoostRpm: 4400,
-    soundFilterHz: 500,
+    baseSpeed:      95,
+    boostSpeed:     200,
+    countdown:      50,
+    hpMax:          80,
+    turnRate:       180,
+    dcCharges:      3,
+    soundSample:    'jetboat',
+    soundBoostRate: 1.45,
   },
   destroyer: {
-    baseSpeed:     45,
-    boostSpeed:    90,
-    countdown:     60,
-    hpMax:         200,
-    turnRate:      40,
-    dcCharges:     6,
-    soundRpm:      2200,
-    soundBoostRpm: 3000,
-    soundFilterHz: 200,
+    baseSpeed:      45,
+    boostSpeed:     90,
+    countdown:      60,
+    hpMax:          200,
+    turnRate:       40,
+    dcCharges:      6,
+    soundSample:    'destroyer',
+    soundBoostRate: 1.25,         // big engine — subtle boost shift
   },
 };
 let selectedShip = 'motorboat';   // default selection
@@ -268,6 +295,36 @@ const MAPS = [
   { json: './map1.json', bg: './map1.jpeg', title: 'Strait of Hormuz'  },
   { json: './map2.json', bg: './map2.jpeg', title: 'South China Sea'   },
   { json: './map3.json', bg: './map3.jpeg', title: 'Aleutian Islands'  },
+];
+
+// Start-screen copy that changes with each map selection.
+// word:  the highlighted place name in the title
+// color: its accent color
+// intro: the paragraph beneath the title
+const MAP_CONTENT = [
+  {
+    word:     'Alaska',
+    color:    '#5ba8c4',
+    subtitle: '🪰 Bugman Industries Presents',
+    intro: `A fleet of tankers are heading south, and the Russkies mined the reefs!  You'\'re the only
+            one standing between us and the Exxon Valdez x 100. Get sweepin punk!`,
+  },
+  {
+    word:     'Vietnam',
+    color:    '#6aab4f',
+    subtitle: '🪰 Công nghiệp Bug Man Presents',
+    intro: `The South China Sea is a powder keg and China has dropped mines to take control!
+            Someone other than you is getting paid handsomely to clear passage for a black market oil deal.  Fire up the motors!`,
+  },
+  {
+    word:     'Hormuz',
+    color:    '#d3b90f',
+    subtitle: '🪰 صنایع مرد حشره Presents',
+    intro: `In 60 seconds, oil tankers will reach The Strait —
+            and everyone forgot to clear the mines!
+            <b>DJT</b> is on the line and I've got to give him the update —
+            will YOU save the day, chump?`,
+  },
 ];
 // Persist the player's last-used map across sessions.
 let selectedMapIndex = parseInt(localStorage.getItem('sb_selectedMap') ?? '0', 10);
@@ -328,7 +385,7 @@ function vibrate(pattern) {
 
   const { state: inputState } = createInput();
 
-  const startHex = terrain.getRandomWaterHexes(1)[0];
+  const startHex = terrain.getStartHex();
   const ship = createShipState({
     startX: startHex.x,
     startY: startHex.y,
@@ -682,8 +739,9 @@ function vibrate(pattern) {
     document.getElementById('hud').classList.remove('visible');
     document.getElementById('controls').classList.remove('visible');
 
-    // Fetch current leaderboard to check if score qualifies
-    const currentBoard = await fetchLeaderboard();
+    // Fetch current map's leaderboard to check if score qualifies
+    const playedMapIndex = selectedMapIndex;   // snapshot — doesn't change mid-await
+    const currentBoard = await fetchLeaderboard(playedMapIndex);
     const lowestTop20 = currentBoard.length < 20
       ? 0
       : currentBoard[currentBoard.length - 1].score;
@@ -711,13 +769,15 @@ function vibrate(pattern) {
         initialsScreen.style.display = 'none';
         document.getElementById('sailCanvas').style.pointerEvents = 'auto';
         await submitScore(name, anchorsFound);
-        const updatedBoard = await fetchLeaderboard();
+        const updatedBoard = await fetchLeaderboard(playedMapIndex);
+        setActiveLeaderboardTab(playedMapIndex);
         renderLeaderboard(updatedBoard, anchorsFound);
         document.getElementById('end-screen').style.display = 'flex';
         setTimeout(() => { document.querySelector('#end-screen .start-card').scrollTop = 0; }, 50);
       };
     } else {
       // No high score — show results directly with leaderboard
+      setActiveLeaderboardTab(playedMapIndex);
       renderLeaderboard(currentBoard, null);
       document.getElementById('end-screen').style.display = 'flex';
       setTimeout(() => { document.querySelector('#end-screen .start-card').scrollTop = 0; }, 50);
@@ -772,7 +832,7 @@ function vibrate(pattern) {
     updateDcHud();
 
     // Reset ship back to the starting hex, heading due "north"
-    const startHex = terrain.getRandomWaterHexes(1)[0];
+    const startHex = terrain.getStartHex();
     ship.setPosition(startHex.x, startHex.y);
     ship.setHeading(0);
 
@@ -798,6 +858,13 @@ function vibrate(pattern) {
       .map(({ x, y }) => ({ x, y, collected: false }));
     renderer.setHourglasses(hourglasses);
 
+    // Always re-derive the start hex from the freshly loaded terrain.
+    // Without this, switching maps leaves the ship at the previous map's
+    // start coordinates, which may land on solid ground in the new map.
+    const startHex = terrain.getStartHex();
+    ship.setPosition(startHex.x, startHex.y);
+    ship.setHeading(0);
+
     const cfg = SHIP_CONFIGS[selectedShip];
     ship.setSpeeds(cfg.baseSpeed, cfg.boostSpeed);
     ship.setTurnRate(cfg.turnRate);
@@ -811,7 +878,7 @@ function vibrate(pattern) {
     updateDcHud();
     sound.init();          // must be called from user gesture — also calls ctx.resume() for iOS
     await sound.loadSamples('.'); // fetch + decode audio files before starting playback
-    sound.startEngine({ normalRpm: cfg.soundRpm, boostRpm: cfg.soundBoostRpm, filterHz: cfg.soundFilterHz });
+    sound.startEngine({ sampleKey: cfg.soundSample, boostRate: cfg.soundBoostRate });
     sound.startMusic();
     const startEl = document.getElementById('start-screen');
     startEl.classList.add('fade-out');
@@ -825,7 +892,11 @@ function vibrate(pattern) {
     renderer.setIntroZoom(INTRO_ZOOM_START);
   }
 
-  document.getElementById('go-btn').addEventListener('click', startIntro);
+  document.getElementById('go-btn').addEventListener('click', () => {
+    if (isMapLocked(selectedMapIndex)) return;
+    if (isShipLocked(SHIP_KEYS.indexOf(selectedShip))) return;
+    startIntro();
+  });
 
   // ── Mute toggle (start screen top-left) ──────────────────────────────────
   // Also calls sound.init() so that ANY tap on this button unlocks the
@@ -839,6 +910,14 @@ function vibrate(pattern) {
 
   // ── Return-to-Port button (end-screen → start-screen, full state reset) ──
   document.getElementById('return-port-btn').addEventListener('click', resetGame);
+
+  // ── Leaderboard tab buttons ───────────────────────────────────────────────
+  // Color and initial style each button, then wire up click → switchLeaderboardTab.
+  document.querySelectorAll('.lb-tab-btn').forEach((btn, i) => {
+    btn.style.color       = LB_TAB_COLORS[i];
+    btn.style.borderColor = LB_TAB_COLORS[i];
+    btn.addEventListener('click', () => switchLeaderboardTab(i));
+  });
 
   // ── How-to overlay ────────────────────────────────────────────────────────
   document.getElementById('how-to-btn').addEventListener('click', () => {
@@ -859,8 +938,32 @@ function vibrate(pattern) {
   // ── Ship selector wiring ─────────────────────────────────────────────────
   const SHIP_KEYS = ['motorboat', 'motorboat_2', 'destroyer', 'jetboat'];
 
+  // Updates the Go button's appearance based on whether the current map/ship is locked.
+  // Safe to call any time — always reflects live selection state.
+  function updateGoBtn() {
+    const mapLocked  = isMapLocked(selectedMapIndex);
+    const shipIdx    = SHIP_KEYS.indexOf(selectedShip);
+    const shipLocked = isShipLocked(shipIdx);
+    const goBtn      = document.getElementById('go-btn');
+    if (!goBtn) return;
+    if (mapLocked || shipLocked) {
+      goBtn.disabled = true;
+      goBtn.style.filter  = 'grayscale(1)';
+      goBtn.style.opacity = '0.55';
+      goBtn.style.cursor  = 'not-allowed';
+      goBtn.textContent   = mapLocked
+        ? '🔒  Select an unlocked map to play'
+        : '🔒  Select an unlocked ship to play';
+    } else {
+      goBtn.disabled = false;
+      goBtn.style.filter  = '';
+      goBtn.style.opacity = '';
+      goBtn.style.cursor  = '';
+      goBtn.textContent   = '🚨   SAVE THE DAY   🚨';
+    }
+  }
+
   function selectShip(index) {
-    if (isShipLocked(index)) return;   // locked ships cannot be selected
     selectedShip = SHIP_KEYS[index];
     document.querySelectorAll('.ship-card').forEach((el, i) => {
       el.classList.toggle('selected', i === index);
@@ -868,6 +971,7 @@ function vibrate(pattern) {
     document.querySelectorAll('.ship-dot').forEach((el, i) => {
       el.classList.toggle('active', i === index);
     });
+    updateGoBtn();
   }
 
   const _shipCarousel = document.getElementById('ship-carousel');
@@ -883,12 +987,17 @@ function vibrate(pattern) {
     _shipCarousel.scrollTo({ left: target, behavior: smooth ? 'smooth' : 'instant' });
   }
 
+  // Suppression flag: true while a click-driven smooth scroll is animating.
+  // Prevents the scroll event from overriding the explicit click selection.
+  let _shipScrollSuppressed = false;
+
   if (_shipCarousel) {
     // Scroll to card 0 on load
     requestAnimationFrame(() => scrollToShip(0, false));
 
-    // Update selection as user swipes
+    // Update selection as user swipes — but not during a click-driven scroll.
     _shipCarousel.addEventListener('scroll', () => {
+      if (_shipScrollSuppressed) return;
       const carouselRect = _shipCarousel.getBoundingClientRect();
       const carouselCenter = carouselRect.left + carouselRect.width / 2;
       const cards = _shipCarousel.querySelectorAll('.ship-card');
@@ -902,23 +1011,36 @@ function vibrate(pattern) {
       selectShip(closest);
     }, { passive: true });
 
-    // Tap a card to select and center it
+    // Tap a card: lock in the selection immediately, then scroll to center it.
     document.querySelectorAll('.ship-card').forEach((card, i) => {
-      card.addEventListener('click', () => scrollToShip(i));
+      card.addEventListener('click', () => {
+        _shipScrollSuppressed = true;
+        selectShip(i);
+        scrollToShip(i);
+        setTimeout(() => { _shipScrollSuppressed = false; }, 600);
+      });
     });
   }
 
   // Dot clicks
   document.querySelectorAll('.ship-dot').forEach((dot, i) => {
-    dot.addEventListener('click', () => scrollToShip(i));
+    dot.addEventListener('click', () => {
+      _shipScrollSuppressed = true;
+      selectShip(i);
+      scrollToShip(i);
+      setTimeout(() => { _shipScrollSuppressed = false; }, 600);
+    });
   });
 
   // Initialize selection
   selectShip(0);
 
   // ── Map selector wiring ───────────────────────────────────────────────────
+  const _titleWord = document.getElementById('map-title-word');
+  const _subtitle  = document.getElementById('map-subtitle');
+  const _startDesc = document.getElementById('start-desc');
+
   function selectMap(index) {
-    if (isMapLocked(index)) return;    // locked maps cannot be selected
     selectedMapIndex = index;
     localStorage.setItem('sb_selectedMap', index);
     document.querySelectorAll('.map-card').forEach((el, i) => {
@@ -927,6 +1049,23 @@ function vibrate(pattern) {
     document.querySelectorAll('.map-dot').forEach((el, i) => {
       el.classList.toggle('active', i === index);
     });
+
+    // ── Crossfade subtitle, title word, and intro text ─────────────────────
+    const content = MAP_CONTENT[index];
+    _subtitle.style.opacity  = '0';
+    _titleWord.style.opacity = '0';
+    _startDesc.style.opacity = '0';
+    setTimeout(() => {
+      _subtitle.textContent    = content.subtitle;
+      _titleWord.textContent   = content.word;
+      _titleWord.style.color   = content.color;
+      _startDesc.innerHTML     = content.intro;
+      _subtitle.style.opacity  = '1';
+      _titleWord.style.opacity = '1';
+      _startDesc.style.opacity = '1';
+    }, 250); // matches the CSS transition duration
+
+    updateGoBtn();
   }
 
   // Apply the persisted selection to the UI on load.
@@ -952,12 +1091,17 @@ function vibrate(pattern) {
     _carousel.scrollTo({ left: target, behavior: smooth ? 'smooth' : 'instant' });
   }
 
+  // Suppression flag: true while a click-driven smooth scroll is animating.
+  // Prevents the scroll event from overriding the explicit click selection.
+  let _mapScrollSuppressed = false;
+
   if (_carousel) {
     // Scroll to persisted card on load — defer so layout is fully complete.
     requestAnimationFrame(() => scrollToCard(selectedMapIndex, false));
 
-    // Update selected map as user swipes — compare card centers to carousel center.
+    // Update selected map as user swipes — but not during a click-driven scroll.
     _carousel.addEventListener('scroll', () => {
+      if (_mapScrollSuppressed) return;
       const carouselCenter = _carousel.scrollLeft + _carousel.clientWidth / 2;
       const cards = _carousel.querySelectorAll('.map-card');
       let closest = 0, minDist = Infinity;
@@ -970,19 +1114,23 @@ function vibrate(pattern) {
     }, { passive: true });
   }
 
-  // Card clicks — select and scroll to the clicked map.
+  // Card clicks — lock in the selection immediately, then scroll to center it.
   document.querySelectorAll('.map-card').forEach((card, i) => {
     card.addEventListener('click', () => {
+      _mapScrollSuppressed = true;
       selectMap(i);
       scrollToCard(i);
+      setTimeout(() => { _mapScrollSuppressed = false; }, 600);
     });
   });
 
-  // Dot clicks — scroll to the corresponding card, centered.
+  // Dot clicks — same pattern.
   document.querySelectorAll('.map-dot').forEach((dot, i) => {
     dot.addEventListener('click', () => {
+      _mapScrollSuppressed = true;
       selectMap(i);
       scrollToCard(i);
+      setTimeout(() => { _mapScrollSuppressed = false; }, 600);
     });
   });
 
@@ -1111,15 +1259,8 @@ function vibrate(pattern) {
   // Await so unlock state is known before the player touches the carousels.
   await loadPlayerRecord();
   progressionLoaded = true;
-  // If the persisted map selection is now locked (new device, cleared data, etc.)
-  // quietly fall back to map 1 so the game always starts in a valid state.
-  if (isMapLocked(selectedMapIndex)) {
-    selectedMapIndex = 0;
-    localStorage.setItem('sb_selectedMap', '0');
-    selectMap(0);
-    requestAnimationFrame(() => scrollToCard(0, false));
-  }
   applyUnlockUI();
+  updateGoBtn();   // reflect lock state now that progression is known
 
   loop.start();
   console.log('[SailBuddy] running — P for debug overlay');

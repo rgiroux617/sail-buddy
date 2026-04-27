@@ -56,9 +56,10 @@ export function createShipState({ startX, startY, startHeading = 0,
         y += dy;
       }
 
-      // 4. Hard clamp to map bounds
-      if (mapW > 0) x = Math.max(10, Math.min(mapW - 10, x));
-      if (mapH > 0) y = Math.max(10, Math.min(mapH - 10, y));
+      // Hard clamp to map bounds — margin of 30 (PAD 20 + 10) keeps the ship
+      // out of the padding region. If PAD ever changes, update these too.
+      if (mapW > 0) x = Math.max(30, Math.min(mapW - 30, x));
+      if (mapH > 0) y = Math.max(30, Math.min(mapH - 30, y));
     },
 
     get x()         { return x; },
